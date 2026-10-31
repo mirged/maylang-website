@@ -60,9 +60,9 @@ The measured fixes, all now in the generator:
 | --- | --- |
 | First full build (cold render cache) | about 52 s |
 | Unchanged rebuild | about 1.6 s |
-| `maysite check` after a build | about 12 s |
+| `maysite check` after a build (includes sample verification) | about 23 s |
 | One page in a child process | 0.4–2 s |
-| Output | 61 pages, about 1.5 MB on disk |
+| Output | 67 pages, about 1.5 MB on disk |
 
 Gzip sizes:
 

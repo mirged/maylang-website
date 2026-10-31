@@ -2,7 +2,7 @@
 title: Language tour
 description: One runnable Maylang sample per concept, from print to fibers.
 section: learn
-group: Guides
+group: Tour
 order: 20
 layout: doc
 ---
@@ -11,27 +11,27 @@ layout: doc
 
 Each stop is a short page with one runnable sample and its verified output. The tour assumes you have a working `may` command; if not, start with [Get started](/learn/get-started/).
 
-The published stops are being filled in. The planned order is:
+Published stops:
 
-1. Hello and `print`
-2. Values and types
-3. `let` and `mut`
-4. Functions and `return`
-5. Control flow
-6. Strings and interpolation
-7. Lists and maps
-8. Structs
-9. Enums and `match`
-10. `Option` and `Result`
-11. `may` / `otherwise` and faults
-12. Closures
-13. Generics
-14. Modules and `pub`
-15. `Any` and dynamic code
-16. Fibers
-17. Files and processes
-18. Networking
-19. Where to go next
+1. [Hello and `print`](/learn/tour/hello/)
+2. [Values and types](/learn/tour/values/)
+3. [Functions](/learn/tour/functions/)
+4. [Lists and maps](/learn/tour/lists/)
+5. [Structs and enums](/learn/tour/structs/)
+6. [Errors and `otherwise`](/learn/tour/errors/)
+
+Still planned:
+
+- Control flow and `match`
+- Strings and interpolation in depth
+- `Option` and `Result`
+- Closures and fibers
+- Generics
+- Modules and `pub`
+- `Any` and dynamic code
+- Files and processes
+- Networking
+- Where to go next
 
 ## Try a sample now
 
