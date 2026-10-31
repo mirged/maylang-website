@@ -1,0 +1,70 @@
+// links.may — rewrite repository-relative links to site pages or pinned
+// GitHub URLs. A link that resolves to neither is left alone so `maysite check`
+// can report it.
+//
+// Pages carry:
+//   source       repository-relative path, e.g. docs/guide/STRICT.md
+//   link_map     { repository path -> site URL }
+//   source_root  absolute or relative checkout path
+//   repo, tag     https://github.com/mirged/maylang + v0.14.0
+import "fs.may" as fs;
+import "util.may" as util;
+import "html.may" as html;
+fun split_anchor(target: Str) -> Any {
+    let hash: Int = index_of(target, "#");
+    if (hash < 0) {
+        return {
+            "path": target,
+            "anchor": ""
+        };
+    }
+    return {
+        "path": substring(target, 0, hash),
+        "anchor": substring(target, hash, len(target) - hash),
+    };
+}
+fun external(target: Str) -> Bool {
+    let lower: Str = to_lower(target);
+    return starts_with(lower, "http://") or starts_with(lower, "https://") or starts_with(lower, "mailto:") or starts_with(lower, "tel:") or starts_with(lower, "//") or starts_with(lower, "data:");
+}
+/// Resolve `target` against the page's repository path.
+pub fun resolve_source(page: Any, target: Str) -> Str {
+    let source: Str = util.text(page, "source", "");
+    if (source == "") {
+        return fs.normpath(target);
+    }
+    return fs.normpath(fs.path_join(fs.dirname(source), target));
+}
+pub fun rewrite(target: Str, page: Any) -> Str {
+    let cleaned: Str = trim(target);
+    if (cleaned == "") {
+        return "";
+    }
+    if (cleaned[0] == "#" or external(cleaned) or starts_with(cleaned, "/") or starts_with(cleaned, "?")) {
+        return cleaned;
+    }
+    let parts: Any = split_anchor(cleaned);
+    let path: Str = str(parts.path);
+    let anchor: Str = str(parts.anchor);
+    if (path == "") {
+        return util.text(page, "url", "/") + anchor;
+    }
+    let resolved: Str = resolve_source(page, path);
+    let map: Any = util.map_of(page, "link_map");
+    if (has(map, resolved)) {
+        return str(map[resolved]) + anchor;
+    }
+    let source_root: Str = util.text(page, "source_root", "");
+    let repo: Str = util.text(page, "repo", "");
+    let tag: Str = util.text(page, "tag", "main");
+    if (source_root != "" and fs.exists(fs.path_join(source_root, resolved))) {
+        if (repo == "") {
+            return cleaned;
+        }
+        return repo + "/blob/" + tag + "/" + resolved + anchor;
+    }
+    return cleaned;
+}
+pub fun href(target: Str, page: Any) -> Str {
+    return html.attr(rewrite(target, page));
+}

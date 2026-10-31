@@ -1,0 +1,76 @@
+// search.may — the static search index.
+import "util.may" as util;
+import "fs.may" as fs;
+fun clean_line(line: Str) -> Str {
+    mut text: Str = trim(line);
+    while (starts_with(text, "#")) {
+        text = trim(substring(text, 1, len(text) - 1));
+    }
+    if (starts_with(text, "> ")) {
+        text = trim(substring(text, 2, len(text) - 2));
+    }
+    let parts: List<Str> = [];
+    for character: Str in chars(text) {
+        if (character != "*" and character != "`") {
+            push(parts, character);
+        }
+    }
+    return join(parts, "");
+}
+pub fun text_of(body: Str) -> Str {
+    let parts: List<Str> = [];
+    mut fenced: Bool = false;
+    mut length: Int = 0;
+    for line: Str in split(body, "\n") {
+        let trimmed: Str = trim(line);
+        if (starts_with(trimmed, "```") or starts_with(trimmed, "~~~")) {
+            fenced = not fenced;
+            continue;
+        }
+        if (fenced or trimmed == "") {
+            continue;
+        }
+        if (starts_with(trimmed, "|") or starts_with(trimmed, "---")) {
+            continue;
+        }
+        let cleaned: Str = clean_line(trimmed);
+        if (cleaned == "") {
+            continue;
+        }
+        push(parts, cleaned);
+        length = length + len(cleaned) + 1;
+        if (length >= 700) {
+            break;
+        }
+    }
+    return trim(join(parts, " "));
+}
+pub fun index_json(pages: List<Any>, root: Str) -> Str {
+    let entries: List<Any> = [];
+    for page: Any in pages {
+        if (util.flag(page, "noindex", false)) {
+            continue;
+        }
+        let headings: List<Any> = [];
+        let raw: Any = page.search_headings;
+        if (raw != nil and type(raw) == "List") {
+            for heading: Any in raw {
+                push(headings, {
+                    "text": util.text(heading, "text", ""),
+                    "id": util.text(heading, "id", "")
+                });
+            }
+        }
+        push(entries, {
+            "title": util.text(page, "title", ""),
+            "url": util.text(page, "url", "/"),
+            "description": util.text(page, "description", ""),
+            "section": util.text(page, "section", ""),
+            "headings": headings,
+            "text": text_of(fs.read_or(fs.path_join(root, util.text(page, "body_file", "")), "")),
+        });
+    }
+    return json_stringify({
+        "pages": entries
+    });
+}

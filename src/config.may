@@ -1,0 +1,126 @@
+// config.may — site.json loading and page front matter.
+import "fs.may" as fs;
+import "util.may" as util;
+import "jsonlite.may" as jsonlite;
+pub fun load(root: Str) -> Any {
+    let path: Str = fs.path_join(root, "site.json");
+    if (not fs.exists(path)) {
+        fail("maysite: missing " + path);
+    }
+    let config: Any = may {
+        jsonlite.document(fs.read(path))
+    } otherwise {
+        fail("maysite: site.json is not valid JSON: " + str(err.message));
+        {}
+    };
+    if (type(config) != "Map") {
+        fail("maysite: site.json must contain an object");
+    }
+    if (config.title == nil) {
+        config.title = "Maylang";
+    }
+    if (config.description == nil) {
+        config.description = "The Maylang programming language.";
+    }
+    if (config.base_url == nil) {
+        config.base_url = "";
+    }
+    if (config.repo == nil) {
+        config.repo = "https://github.com/mirged/maylang";
+    }
+    if (config.tag == nil) {
+        config.tag = "main";
+    }
+    if (config.source == nil) {
+        config.source = "../maylang";
+    }
+    if (config.nav == nil) {
+        config.nav = [];
+    }
+    if (config.imports == nil) {
+        config.imports = [];
+    }
+    return config;
+}
+pub fun source_root(root: Str, config: Any) -> Str {
+    let configured: Str = env("MAYLANG_SRC") ?? str(config.source);
+    return fs.resolve(root, configured);
+}
+pub fun release(config: Any) -> Any {
+    let value: Any = config.release;
+    if (value == nil) {
+        return {
+            "version": "0.0.0",
+            "codename": "",
+            "date": ""
+        };
+    }
+    return value;
+}
+pub fun version_label(config: Any) -> Str {
+    let r: Any = release(config);
+    let codename: Str = str(r.codename ?? "");
+    if (codename == "") {
+        return "v" + str(r.version);
+    }
+    return "v" + str(r.version) + " " + codename;
+}
+/// Parse a small `key: value` header delimited by `---` lines.
+pub fun front_matter(source: Str) -> Any {
+    mut text: Str = source;
+    if (index_of(text, "\r") >= 0) {
+        text = replace(text, "\r\n", "\n");
+    }
+    if (not starts_with(text, "---\n")) {
+        return {
+            "meta": {},
+            "body": text
+        };
+    }
+    let rest: Str = substring(text, 4, len(text) - 4);
+    let end: Int = index_of(rest, "\n---\n");
+    if (end < 0) {
+        if (starts_with(rest, "---\n")) {
+            return {
+                "meta": {},
+                "body": substring(rest, 4, len(rest) - 4)
+            };
+        }
+        return {
+            "meta": {},
+            "body": text
+        };
+    }
+    let header: Str = substring(rest, 0, end);
+    let body: Str = substring(rest, end + 5, len(rest) - end - 5);
+    let meta: Any = {};
+    for line: Str in split(header, "\n") {
+        if (trim(line) == "") {
+            continue;
+        }
+        let colon: Int = index_of(line, ":");
+        if (colon <= 0) {
+            continue;
+        }
+        let key: Str = trim(substring(line, 0, colon));
+        mut value: Str = trim(substring(line, colon + 1, len(line) - colon - 1));
+        if (starts_with(value, "\"") and ends_with(value, "\"") and len(value) >= 2) {
+            value = substring(value, 1, len(value) - 2);
+        }
+        meta[key] = value;
+    }
+    return {
+        "meta": meta,
+        "body": body
+    };
+}
+pub fun description_of(body: Str, fallback: Str) -> Str {
+    for line: Str in split(body, "\n") {
+        let trimmed: Str = trim(line);
+        if (trimmed == "" or starts_with(trimmed, "#") or starts_with(trimmed, "-") or starts_with(trimmed, ">") or starts_with(trimmed, "```")) {
+            continue;
+        }
+        return util.first_line(util.plain(trimmed));
+    }
+    return fallback;
+}

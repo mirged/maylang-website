@@ -1,0 +1,281 @@
+// jsonlite.may — incremental readers for the large reference JSON files.
+//
+// `json_parse` builds the whole document at once. The reference inventory and
+// the descriptions file are large enough to expose the sustained-allocation
+// problem in the full runtime, so we scan the top level and parse one small
+// value at a time. This is a workaround, not a replacement for the runtime
+// parser; see design section 12.
+import "util.may" as util;
+fun skip_ws(characters: List<Str>, index: Int) -> Int {
+    mut i: Int = index;
+    while (i < len(characters)) {
+        let c: Str = characters[i];
+        if (c != " " and c != "\t" and c != "\n" and c != "\r") {
+            break;
+        }
+        i = i + 1;
+    }
+    return i;
+}
+fun scan_string(characters: List<Str>, start: Int) -> Int {
+    mut i: Int = start + 1;
+    mut escaped: Bool = false;
+    while (i < len(characters)) {
+        let c: Str = characters[i];
+        if (escaped) {
+            escaped = false;
+        } else if (c == "\\") {
+            escaped = true;
+        } else if (c == "\"") {
+            return i + 1;
+        }
+        i = i + 1;
+    }
+    fail("maysite: unterminated JSON string");
+    return i;
+}
+/// Return the index just after the JSON value beginning at `start`.
+fun scan_value(characters: List<Str>, start: Int) -> Int {
+    mut i: Int = skip_ws(characters, start);
+    if (i >= len(characters)) {
+        return i;
+    }
+    let first: Str = characters[i];
+    if (first == "\"") {
+        return scan_string(characters, i);
+    }
+    if (first == "{" or first == "[") {
+        mut depth: Int = 0;
+        while (i < len(characters)) {
+            let c: Str = characters[i];
+            if (c == "\"") {
+                i = scan_string(characters, i);
+                continue;
+            }
+            if (c == "{" or c == "[") {
+                depth = depth + 1;
+            } else if (c == "}" or c == "]") {
+                depth = depth - 1;
+                if (depth == 0) {
+                    return i + 1;
+                }
+            }
+            i = i + 1;
+        }
+        fail("maysite: unterminated JSON value");
+        return i;
+    }
+    while (i < len(characters)) {
+        let c: Str = characters[i];
+        if (c == "," or c == "}" or c == "]") {
+            break;
+        }
+        i = i + 1;
+    }
+    return i;
+}
+/// Decode a JSON string literal without building an AST.
+pub fun unquote(raw: Str) -> Str {
+    let text: Str = trim(raw);
+    if (not starts_with(text, "\"") or not ends_with(text, "\"")) {
+        return text;
+    }
+    let inner: Str = substring(text, 1, len(text) - 2);
+    mut output: Str = "";
+    mut i: Int = 0;
+    while (i < len(inner)) {
+        let c: Str = inner[i];
+        if (c != "\\") {
+            output = output + c;
+            i = i + 1;
+            continue;
+        }
+        i = i + 1;
+        if (i >= len(inner)) {
+            break;
+        }
+        let escaped: Str = inner[i];
+        if (escaped == "n") {
+            output = output + "\n";
+        } else if (escaped == "t") {
+            output = output + "\t";
+        } else if (escaped == "r") {
+            output = output + "\r";
+        } else if (escaped == "b") {
+            output = output + "\b";
+        } else if (escaped == "f") {
+            output = output + "\f";
+        } else if (escaped == "/") {
+            output = output + "/";
+        } else if (escaped == "\\") {
+            output = output + "\\";
+        } else if (escaped == "\"") {
+            output = output + "\"";
+        } else if (escaped == "u") {
+            if (i + 4 < len(inner)) {
+                mut code: Int = 0;
+                mut k: Int = 1;
+                while (k <= 4) {
+                    let digit: Str = inner[i + k];
+                    let n: Int = ord(digit);
+                    let value: Int = if (n >= 48 and n <= 57) {
+                        n - 48
+                    } else if (n >= 97 and n <= 102) {
+                        n - 87
+                    } else if (n >= 65 and n <= 70) {
+                        n - 55
+                    } else {
+                        0
+                    };
+                    code = code * 16 + value;
+                    k = k + 1;
+                }
+                output = output + chr(code);
+                i = i + 4;
+            }
+        } else {
+            output = output + escaped;
+        }
+        i = i + 1;
+    }
+    return output;
+}
+fun scalar(raw: Str) -> Any {
+    let text: Str = trim(raw);
+    if (starts_with(text, "\"")) {
+        return unquote(text);
+    }
+    if (text == "true") {
+        return true;
+    }
+    if (text == "false") {
+        return false;
+    }
+    if (text == "null") {
+        return nil;
+    }
+    if (index_of(text, ".") >= 0) {
+        return float(text);
+    }
+    return int(text);
+}
+/// Decode an object whose values are scalars (the reference inventory shape).
+pub fun parse_object(raw: Str) -> Any {
+    let pairs: Any = object_items(raw);
+    let output: Any = {};
+    for raw_key: Any in keys(pairs) {
+        let key: Str = str(raw_key);
+        output[key] = scalar(str(pairs[key]));
+    }
+    return output;
+}
+pub fun string_field(raw: Str, field: Str) -> Str {
+    let pairs: Any = object_items(raw);
+    let value: Any = pairs[field];
+    if (value == nil) {
+        return "";
+    }
+    return unquote(str(value));
+}
+/// Raw JSON values inside a top-level array.
+pub fun array_items(text: Str) -> List<Str> {
+    let items: List<Str> = [];
+    let characters: List<Str> = chars(text);
+    mut i: Int = skip_ws(characters, 0);
+    if (i >= len(characters) or characters[i] != "[") {
+        return items;
+    }
+    i = skip_ws(characters, i + 1);
+    while (i < len(characters) and characters[i] != "]") {
+        let end: Int = scan_value(characters, i);
+        push(items, substring(text, i, end - i));
+        i = skip_ws(characters, end);
+        if (i < len(characters) and characters[i] == ",") {
+            i = skip_ws(characters, i + 1);
+        }
+    }
+    return items;
+}
+/// Raw JSON values keyed by the top-level object's keys.
+pub fun object_items(text: Str) -> Any {
+    let items: Any = {};
+    let characters: List<Str> = chars(text);
+    mut i: Int = skip_ws(characters, 0);
+    if (i >= len(characters) or characters[i] != "{") {
+        return items;
+    }
+    i = skip_ws(characters, i + 1);
+    while (i < len(characters) and characters[i] != "}") {
+        if (characters[i] != "\"") {
+            fail("maysite: expected a JSON object key");
+        }
+        let key_end: Int = scan_string(characters, i);
+        let key: Str = unquote(substring(text, i, key_end - i));
+        i = skip_ws(characters, key_end);
+        if (i >= len(characters) or characters[i] != ":") {
+            fail("maysite: expected : in JSON object");
+        }
+        i = skip_ws(characters, i + 1);
+        let end: Int = scan_value(characters, i);
+        items[key] = substring(text, i, end - i);
+        i = skip_ws(characters, end);
+        if (i < len(characters) and characters[i] == ",") {
+            i = skip_ws(characters, i + 1);
+        }
+    }
+    return items;
+}
+/// Parse a raw object whose values are strings.
+pub fun string_map(raw: Str) -> Any {
+    let pairs: Any = object_items(raw);
+    let output: Any = {};
+    for raw_key: Any in keys(pairs) {
+        let key: Str = str(raw_key);
+        output[key] = unquote(str(pairs[key]));
+    }
+    return output;
+}
+/// Parse a raw object whose values are arrays of strings.
+pub fun array_map(raw: Str) -> Any {
+    let pairs: Any = object_items(raw);
+    let output: Any = {};
+    for raw_key: Any in keys(pairs) {
+        let key: Str = str(raw_key);
+        let values: List<Any> = [];
+        for item: Str in array_items(str(pairs[key])) {
+            push(values, unquote(item));
+        }
+        output[key] = values;
+    }
+    return output;
+}
+pub fun value(raw: Str) -> Any {
+    let text: Str = trim(raw);
+    if (starts_with(text, "{")) {
+        let pairs: Any = object_items(text);
+        let output: Any = {};
+        for raw_key: Any in keys(pairs) {
+            let key: Str = str(raw_key);
+            output[key] = value(str(pairs[key]));
+        }
+        return output;
+    }
+    if (starts_with(text, "[")) {
+        let values: List<Any> = [];
+        for item: Str in array_items(text) {
+            push(values, value(item));
+        }
+        return values;
+    }
+    return scalar(text);
+}
+pub fun document(text: Str) -> Any {
+    return value(text);
+}
+pub fun array(raw: Str) -> List<Any> {
+    let output: List<Any> = [];
+    for item: Str in array_items(raw) {
+        push(output, json_parse(item));
+    }
+    return output;
+}

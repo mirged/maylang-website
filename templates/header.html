@@ -1,0 +1,23 @@
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="/" aria-label="Maylang home">
+      <svg class="brand-mark" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+        <rect width="28" height="28" rx="6" fill="currentColor"></rect>
+        <path d="M6 20V8l8 8 8-8v12" fill="none" stroke="var(--accent-ink)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+      <span class="brand-name">Maylang</span>
+    </a>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-nav" data-menu-toggle>Menu</button>
+    <nav id="primary-nav" class="primary-nav" aria-label="Primary">${nav}</nav>
+    <div class="header-tools">
+      <form class="search" role="search" action="/search/" method="get">
+        <label class="sr-only" for="site-search">Search the site</label>
+        <input id="site-search" name="q" type="search" placeholder="Search docs" autocomplete="off" spellcheck="false">
+        <button type="submit" aria-label="Search">Search</button>
+      </form>
+      <a class="github-link" href="${repo}">GitHub</a>
+      <span class="version-badge" title="Latest release">${version}</span>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle color theme">Theme</button>
+    </div>
+  </div>
+</header>

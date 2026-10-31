@@ -1,0 +1,219 @@
+{
+    "title": "Maylang",
+    "description": "An experimental, self-hosted language with strict checking by default and direct native Linux x86-64 output.",
+    "base_url": "https://maylang.dev",
+    "repo": "https://github.com/mirged/maylang",
+    "site_repo": "https://github.com/mirged/maylang-website",
+    "tag": "v0.14.0",
+    "source": "../maylang",
+    "release": {
+        "version": "0.14.0",
+        "codename": "Elm",
+        "date": "2026-10-20"
+    },
+    "nav": [
+        {
+            "label": "Learn",
+            "url": "/learn/",
+            "section": "learn"
+        },
+        {
+            "label": "Docs",
+            "url": "/docs/latest/",
+            "section": "docs"
+        },
+        {
+            "label": "Tools",
+            "url": "/tools/",
+            "section": "tools"
+        },
+        {
+            "label": "Examples",
+            "url": "/examples/",
+            "section": "examples"
+        },
+        {
+            "label": "Internals",
+            "url": "/internals/",
+            "section": "internals"
+        },
+        {
+            "label": "Releases",
+            "url": "/releases/",
+            "section": "releases"
+        }
+    ],
+    "imports": [
+        {
+            "url": "/install/",
+            "source": "docs/guide/INSTALL.md",
+            "title": "Install Maylang",
+            "section": "learn",
+            "group": "Get started",
+            "order": "5",
+            "layout": "doc",
+            "description": "The installer, unattended setup, WSL 2, offline bundles, updates and uninstalling."
+        },
+        {
+            "url": "/docs/latest/",
+            "source": "docs/reference/README.md",
+            "title": "Documentation",
+            "section": "docs",
+            "group": "Reference",
+            "order": "1",
+            "layout": "doc",
+            "list_only": true,
+            "description": "Versioned language, syntax, runtime, standard-library and toolchain reference for Maylang 0.14.0."
+        },
+        {
+            "url": "/docs/latest/language/",
+            "source": "docs/reference/LANGUAGE.md",
+            "title": "Language",
+            "section": "docs",
+            "group": "Reference",
+            "order": "10",
+            "layout": "doc",
+            "list_only": true,
+            "description": "Values, types, operators, control flow, functions, modules and error handling."
+        },
+        {
+            "url": "/docs/latest/syntax/",
+            "source": "docs/reference/SYNTAX.md",
+            "title": "Syntax catalog",
+            "section": "docs",
+            "group": "Reference",
+            "order": "20",
+            "layout": "doc",
+            "list_only": true,
+            "description": "Every keyword, type and operator in the Maylang editor catalog."
+        },
+        {
+            "url": "/docs/latest/runtime/",
+            "source": "docs/reference/RUNTIME.md",
+            "title": "Runtime API",
+            "section": "docs",
+            "group": "Reference",
+            "order": "30",
+            "layout": "doc",
+            "list_only": true,
+            "description": "Built-in functions, OS operations, math, memory and C calls."
+        },
+        {
+            "url": "/docs/latest/examples/",
+            "source": "docs/reference/EXAMPLES.md",
+            "title": "Reference examples",
+            "section": "docs",
+            "group": "Reference",
+            "order": "40",
+            "layout": "doc",
+            "list_only": true,
+            "description": "Small strict-mode programs from the reference documentation."
+        },
+        {
+            "url": "/docs/latest/toolchain/",
+            "source": "docs/reference/TOOLCHAIN.md",
+            "title": "Toolchain",
+            "section": "docs",
+            "group": "Reference",
+            "order": "50",
+            "layout": "doc",
+            "list_only": true,
+            "description": "Build and run commands, compiler flags, runtimes, targets and editor integration."
+        },
+        {
+            "url": "/docs/latest/stdlib/",
+            "source": "docs/reference/STDLIB.md",
+            "title": "Standard library",
+            "section": "docs",
+            "group": "Reference",
+            "order": "60",
+            "layout": "doc",
+            "list_only": true,
+            "description": "All top-level standard-library modules and their declarations."
+        },
+        {
+            "url": "/learn/strict/",
+            "source": "docs/guide/STRICT.md",
+            "title": "Strict typing",
+            "section": "learn",
+            "group": "Guides",
+            "order": "30",
+            "layout": "doc",
+            "description": "How checking works, what the compiler infers, and where Any belongs."
+        },
+        {
+            "url": "/learn/network/",
+            "source": "docs/guide/NETWORK.md",
+            "title": "Networking",
+            "section": "learn",
+            "group": "Guides",
+            "order": "40",
+            "layout": "doc",
+            "description": "TCP and UDP with stdlib/net, including structured network errors."
+        },
+        {
+            "url": "/roadmap/",
+            "source": "ROADMAP.md",
+            "title": "Roadmap",
+            "section": "about",
+            "group": "Project",
+            "order": "10",
+            "layout": "page",
+            "description": "Outcome-based priorities for the compiler, library, tooling and documentation."
+        },
+        {
+            "url": "/contribute/",
+            "source": "CONTRIBUTING.md",
+            "title": "Contributing",
+            "section": "about",
+            "group": "Project",
+            "order": "20",
+            "layout": "page",
+            "description": "Development setup, repository boundaries, checks and contribution guidance."
+        },
+        {
+            "url": "/tools/may/",
+            "source": "tools/may/README.md",
+            "title": "may workspace runner",
+            "section": "tools",
+            "group": "Tools",
+            "order": "10",
+            "layout": "doc",
+            "description": "The workspace runner: may.json, build graph, caching, tests and dev mode."
+        },
+        {
+            "url": "/tools/mayfmt/",
+            "source": "tools/mayfmt/README.md",
+            "title": "mayfmt",
+            "section": "tools",
+            "group": "Tools",
+            "order": "20",
+            "layout": "doc",
+            "description": "The Maylang formatter used by the command line and editors."
+        },
+        {
+            "url": "/tools/maylsp/",
+            "source": "docs/guide/LSP.md",
+            "title": "maylsp",
+            "section": "tools",
+            "group": "Tools",
+            "order": "30",
+            "layout": "doc",
+            "description": "Diagnostics, navigation, references and document symbols for editors."
+        },
+        {
+            "url": "/tools/vscode/",
+            "source": "editors/vscode/README.md",
+            "title": "VS Code",
+            "section": "tools",
+            "group": "Tools",
+            "order": "40",
+            "layout": "doc",
+            "description": "Install and configure the Maylang VS Code extension."
+        }
+    ],
+    "stdlib": {
+        "inventory": "docs/reference/inventory.json",
+        "descriptions": "docs/reference/descriptions.json"
+    }
+}

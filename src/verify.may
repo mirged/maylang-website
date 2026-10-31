@@ -1,0 +1,138 @@
+// verify.may — compile site-authored samples and compare expected output.
+//
+// Every ```may fence in content/ is compiled with the selected compiler. A
+// fence followed by an ```output fence is also run, and the output must match.
+// Imported documentation is not verified here yet: some of its fences are
+// fragments or need a window, a server or stdin.
+import "fs.may" as fs;
+import "util.may" as util;
+let HERO_SAMPLE: Str = "fun double(value: Int) -> Int {\n    return value * 2;\n}\n\nlet answer: Int = may {\n    double(21)\n} otherwise {\n    0\n};\n\nprint(answer);";
+fun compiler() -> Str {
+    return env("MAYC") ?? "mayc";
+}
+fun compile_and_run(root: Str, code: Str, expected: Str, label: Str, counter: Int) -> Bool {
+    let directory: Str = fs.path_join(root, ".may/verify");
+    fs.mkdirs(directory);
+    let source: Str = fs.path_join(directory, str(counter) + ".may");
+    let binary: Str = fs.path_join(directory, str(counter) + ".bin");
+    let output: Str = fs.path_join(directory, str(counter) + ".out");
+    let log: Str = fs.path_join(directory, str(counter) + ".log");
+    fs.write(source, code + "\n");
+    let built: Int = int(system(fs.quote(compiler()) + " " + fs.quote(source) + " -o " + fs.quote(binary) + " > " + fs.quote(log) + " 2>&1"));
+    if (built != 0) {
+        print("verify: compile failed for " + label);
+        print(fs.read_or(log, ""));
+        return false;
+    }
+    if (expected == "") {
+        return true;
+    }
+    let ran: Int = int(system(fs.quote(binary) + " > " + fs.quote(output) + " 2>&1 < /dev/null"));
+    if (ran != 0) {
+        print("verify: " + label + " exited with status " + str(ran));
+        return false;
+    }
+    let actual: Str = fs.read_or(output, "");
+    let wanted: Str = expected + "\n";
+    if (actual != wanted) {
+        print("verify: output mismatch for " + label);
+        print("  expected: " + escape_preview(wanted));
+        print("  actual:   " + escape_preview(actual));
+        return false;
+    }
+    return true;
+}
+fun escape_preview(value: Str) -> Str {
+    return replace(replace(value, "\n", "\\n"), "\t", "\\t");
+}
+fun fence_language(line: Str) -> Str {
+    let info: Str = trim(substring(trim(line), 3, len(trim(line)) - 3));
+    let parts: List<Str> = split(info, " ");
+    if (len(parts) == 0) {
+        return "";
+    }
+    return to_lower(parts[0]);
+}
+fun verify_body(root: Str, body: Str, label: Str, counter: Int) -> Int {
+    let lines: List<Str> = split(body, "\n");
+    mut failures: Int = 0;
+    mut i: Int = 0;
+    mut number: Int = counter;
+    while (i < len(lines)) {
+        let line: Str = trim(lines[i]);
+        if (not starts_with(line, "```")) {
+            i = i + 1;
+            continue;
+        }
+        let language: Str = fence_language(line);
+        let code_lines: List<Str> = [];
+        let start_line: Int = i + 1;
+        i = i + 1;
+        while (i < len(lines) and not starts_with(trim(lines[i]), "```")) {
+            push(code_lines, lines[i]);
+            i = i + 1;
+        }
+        if (i < len(lines)) {
+            i = i + 1;
+        }
+        let code: Str = join(code_lines, "\n");
+        mut expected: Str = "";
+        if (language == "may") {
+            mut look: Int = i;
+            while (look < len(lines) and trim(lines[look]) == "") {
+                look = look + 1;
+            }
+            if (look < len(lines) and fence_language(lines[look]) == "output") {
+                let expected_lines: List<Str> = [];
+                look = look + 1;
+                while (look < len(lines) and not starts_with(trim(lines[look]), "```")) {
+                    push(expected_lines, lines[look]);
+                    look = look + 1;
+                }
+                expected = join(expected_lines, "\n");
+                i = look;
+                if (i < len(lines)) {
+                    i = i + 1;
+                }
+            }
+            number = number + 1;
+            if (not compile_and_run(root, code, expected, label + ":" + str(start_line), number)) {
+                failures = failures + 1;
+            }
+        }
+    }
+    return failures;
+}
+pub fun run(root: Str, pages: List<Any>) -> Int {
+    mut failures: Int = 0;
+    mut counter: Int = 0;
+    for page: Any in pages {
+        if (util.text(page, "kind", "") != "content") {
+            continue;
+        }
+        let body_file: Str = util.text(page, "body_file", "");
+        if (body_file == "") {
+            continue;
+        }
+        let body: Str = fs.read_or(fs.path_join(root, body_file), "");
+        if (body == "") {
+            continue;
+        }
+        failures = failures + verify_body(root, body, util.text(page, "url", "/"), counter);
+        counter = counter + 100;
+    }
+    // The home page sample lives in the template rather than content/.
+    if (not compile_and_run(root, HERO_SAMPLE, "42", "home hero", counter + 1)) {
+        failures = failures + 1;
+    }
+    if (failures == 0) {
+        print("verify: site samples compile and match their output");
+    } else {
+        print("verify: " + str(failures) + " sample failures");
+    }
+    return if (failures == 0) {
+        0
+    } else {
+        1
+    };
+}

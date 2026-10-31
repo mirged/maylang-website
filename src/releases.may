@@ -1,0 +1,163 @@
+// releases.may — split CHANGELOG.md into one page per release and build the
+// release index.
+import "fs.may" as fs;
+import "util.may" as util;
+fun extract_date(lines: List<Str>) -> Str {
+    for line: Str in lines {
+        let trimmed: Str = trim(line);
+        let marker: Int = index_of(trimmed, "Released ");
+        if (marker >= 0) {
+            let rest: Str = substring(trimmed, marker + 9, len(trimmed) - marker - 9);
+            let parts: List<Str> = split(rest, " ");
+            if (len(parts) > 0) {
+                mut date: Str = parts[0];
+                if (ends_with(date, ".")) {
+                    date = substring(date, 0, len(date) - 1);
+                }
+                return date;
+            }
+        }
+    }
+    return "";
+}
+fun minor_of(version: Str) -> Str {
+    let parts: List<Str> = split(version, ".");
+    if (len(parts) >= 2) {
+        return parts[0] + "." + parts[1];
+    }
+    return version;
+}
+fun finish(releases: List<Any>, heading: Str, lines: List<Str>) -> Nil {
+    let rest: Str = trim(substring(heading, 8, len(heading) - 8));
+    mut dash: Int = index_of(rest, " — ");
+    mut version: Str = rest;
+    mut codename: Str = "";
+    if (dash < 0) {
+        dash = index_of(rest, " - ");
+    }
+    if (dash >= 0) {
+        version = trim(substring(rest, 0, dash));
+        codename = trim(substring(rest, dash + 3, len(rest) - dash - 3));
+    }
+    if (version == "") {
+        return;
+    }
+    let date: Str = extract_date(lines);
+    mut body: Str = "# Maylang " + version;
+    if (codename != "") {
+        body = body + " — " + codename;
+    }
+    body = body + "\n" + join(lines, "\n");
+    mut description: Str = "Release notes for Maylang " + version;
+    if (codename != "") {
+        description = description + " " + codename;
+    }
+    description = description + ".";
+    push(releases, {
+        "version": version,
+        "codename": codename,
+        "date": date,
+        "url": "/releases/" + version + "/",
+        "title": version +(if (codename == "") {
+            ""
+        } else {
+            " " + codename
+        }),
+        "description": description,
+        "body": body,
+    });
+    return;
+}
+pub fun parse(text: Str) -> List<Any> {
+    let releases: List<Any> = [];
+    let lines: List<Str> = split(text, "\n");
+    mut current: List<Str> = [];
+    mut heading: Str = "";
+    mut collecting: Bool = false;
+    for line: Str in lines {
+        if (starts_with(line, "# ")) {
+            if (collecting and heading != "") {
+                finish(releases, heading, current);
+            }
+            let candidate: Str = trim(substring(line, 2, len(line) - 2));
+            if (starts_with(candidate, "Maylang ")) {
+                heading = candidate;
+                current = [];
+                collecting = true;
+            } else {
+                heading = "";
+                collecting = false;
+            }
+        } else if (collecting) {
+            push(current, line);
+        }
+    }
+    if (collecting and heading != "") {
+        finish(releases, heading, current);
+    }
+    return releases;
+}
+pub fun pages(source_root: Str, repo: Str, tag: Str) -> List<Any> {
+    let path: Str = fs.path_join(source_root, "CHANGELOG.md");
+    if (not fs.exists(path)) {
+        return [];
+    }
+    let releases: List<Any> = parse(fs.read(path));
+    if (len(releases) == 0) {
+        return [];
+    }
+    let pages: List<Any> = [];
+    mut index_body: Str = "# Releases\n\nEvery Maylang release, newest first. The current release is also on the home page.\n\n";
+    mut order: Int = 2;
+    mut current_group: Str = "";
+    for release: Any in releases {
+        let version: Str = util.text(release, "version", "");
+        let codename: Str = util.text(release, "codename", "");
+        let date: Str = util.text(release, "date", "");
+        let url: Str = util.text(release, "url", "/releases/");
+        let title: Str = util.text(release, "title", version);
+        push(pages, {
+            "url": url,
+            "title": title,
+            "description": util.text(release, "description", ""),
+            "section": "releases",
+            "group": "Releases",
+            "order": str(order),
+            "layout": "doc",
+            "source": "CHANGELOG.md",
+            "body": util.text(release, "body", ""),
+            "kind": "release",
+            "in_sidebar": true,
+            "date": date,
+        });
+        let group: Str = minor_of(version) + ".x";
+        if (group != current_group) {
+            current_group = group;
+            index_body = index_body + "## " + group;
+            if (codename != "") {
+                index_body = index_body + " — " + codename;
+            }
+            index_body = index_body + "\n\n";
+        }
+        index_body = index_body + "- [" + title + "](" + url + ")";
+        if (date != "") {
+            index_body = index_body + " — " + date;
+        }
+        index_body = index_body + "\n";
+        order = order + 1;
+    }
+    push(pages, {
+        "url": "/releases/",
+        "title": "Releases",
+        "description": "Every Maylang release, newest first, with notes and upgrade information.",
+        "section": "releases",
+        "group": "Releases",
+        "order": "1",
+        "layout": "doc",
+        "source": "CHANGELOG.md",
+        "body": index_body + "\n",
+        "kind": "content",
+        "in_sidebar": true,
+    });
+    return pages;
+}

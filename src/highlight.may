@@ -1,0 +1,285 @@
+// highlight.may — static syntax highlighting.
+//
+// The generator emits spans at build time. There is no client-side
+// highlighter. The Maylang tokenizer follows the language's keyword set; it is
+// deliberately small and is replaced by the compiler lexer once the lexer can
+// be isolated from its process globals (see design section 5.5).
+import "html.may" as html;
+let MAY_KEYWORDS: List<Str> = [
+    "and",
+    "as",
+    "break",
+    "continue",
+    "else",
+    "enum",
+    "extern",
+    "fail",
+    "false",
+    "for",
+    "from",
+    "fun",
+    "if",
+    "import",
+    "in",
+    "let",
+    "match",
+    "may",
+    "mut",
+    "nil",
+    "not",
+    "or",
+    "otherwise",
+    "pub",
+    "return",
+    "spawn",
+    "struct",
+    "true",
+    "type",
+    "unless",
+    "while",
+    "yield",
+];
+let MAY_TYPES: List<Str> = [
+    "Any",
+    "Bool",
+    "Byte",
+    "F32",
+    "F64",
+    "Float",
+    "Float32",
+    "Float64",
+    "Fn",
+    "Int",
+    "Int8",
+    "Int16",
+    "Int32",
+    "Int64",
+    "List",
+    "Map",
+    "Nil",
+    "Option",
+    "Optional",
+    "Ptr",
+    "RawPtr",
+    "Result",
+    "Slice",
+    "Str",
+    "Tuple",
+    "UInt8",
+    "UInt16",
+    "UInt32",
+    "UInt64",
+    "Void",
+];
+let MAY_LITERALS: List<Str> = ["true", "false", "nil"];
+fun span(kind: Str, value: Str) -> Str {
+    if (kind == "") {
+        return html.escape(value);
+    }
+    return "<span class=\"tk-" + kind + "\">" + html.escape(value) + "</span>";
+}
+fun is_identifier_start(character: Str) -> Bool {
+    let code: Int = ord(character);
+    return (code >= 65 and code <= 90) or(code >= 97 and code <= 122) or code == 95 or code > 127;
+}
+fun is_identifier_part(character: Str) -> Bool {
+    let code: Int = ord(character);
+    return is_identifier_start(character) or(code >= 48 and code <= 57);
+}
+fun is_digit(character: Str) -> Bool {
+    let code: Int = ord(character);
+    return code >= 48 and code <= 57;
+}
+pub fun maylang(source: Str) -> Str {
+    let parts: List<Str> = [];
+    mut i: Int = 0;
+    while (i < len(source)) {
+        let character: Str = source[i];
+        if (character == "/" and i + 1 < len(source) and source[i + 1] == "/") {
+            mut end: Int = i;
+            while (end < len(source) and source[end] != "\n") {
+                end = end + 1;
+            }
+            push(parts, span("com", substring(source, i, end - i)));
+            i = end;
+        } else if (character == "/" and i + 1 < len(source) and source[i + 1] == "*") {
+            mut end: Int = i + 2;
+            while (end + 1 < len(source) and not(source[end] == "*" and source[end + 1] == "/")) {
+                end = end + 1;
+            }
+            if (end + 1 < len(source)) {
+                end = end + 2;
+            } else {
+                end = len(source);
+            }
+            push(parts, span("com", substring(source, i, end - i)));
+            i = end;
+        } else if (character == "\"") {
+            mut end: Int = i + 1;
+            mut escaped: Bool = false;
+            while (end < len(source)) {
+                let current: Str = source[end];
+                if (escaped) {
+                    escaped = false;
+                } else if (current == "\\") {
+                    escaped = true;
+                } else if (current == "\"") {
+                    end = end + 1;
+                    break;
+                }
+                end = end + 1;
+            }
+            push(parts, span("str", substring(source, i, end - i)));
+            i = end;
+        } else if (is_digit(character)) {
+            mut end: Int = i + 1;
+            while (end < len(source)) {
+                let current: Str = source[end];
+                if (is_digit(current) or current == "_" or current == ".") {
+                    end = end + 1;
+                } else {
+                    break;
+                }
+            }
+            push(parts, span("num", substring(source, i, end - i)));
+            i = end;
+        } else if (is_identifier_start(character)) {
+            mut end: Int = i + 1;
+            while (end < len(source) and is_identifier_part(source[end])) {
+                end = end + 1;
+            }
+            let word: Str = substring(source, i, end - i);
+            if (has(MAY_KEYWORDS, word) or has(MAY_LITERALS, word)) {
+                push(parts, span("kw", word));
+            } else if (has(MAY_TYPES, word)) {
+                push(parts, span("type", word));
+            } else {
+                mut next: Int = end;
+                while (next < len(source) and(source[next] == " " or source[next] == "\t")) {
+                    next = next + 1;
+                }
+                if (next < len(source) and source[next] == "(") {
+                    push(parts, span("fn", word));
+                } else {
+                    push(parts, html.escape(word));
+                }
+            }
+            i = end;
+        } else {
+            push(parts, html.escape(character));
+            i = i + 1;
+        }
+    }
+    return join(parts, "");
+}
+pub fun sh(source: Str) -> Str {
+    let parts: List<Str> = [];
+    mut i: Int = 0;
+    while (i < len(source)) {
+        let character: Str = source[i];
+        if (character == "#") {
+            mut end: Int = i;
+            while (end < len(source) and source[end] != "\n") {
+                end = end + 1;
+            }
+            push(parts, span("com", substring(source, i, end - i)));
+            i = end;
+        } else if (character == "\"" or character == "'") {
+            let quote: Str = character;
+            mut end: Int = i + 1;
+            mut escaped: Bool = false;
+            while (end < len(source)) {
+                let current: Str = source[end];
+                if (escaped) {
+                    escaped = false;
+                } else if (current == "\\" and quote == "\"") {
+                    escaped = true;
+                } else if (current == quote) {
+                    end = end + 1;
+                    break;
+                }
+                end = end + 1;
+            }
+            push(parts, span("str", substring(source, i, end - i)));
+            i = end;
+        } else if (is_digit(character)) {
+            mut end: Int = i + 1;
+            while (end < len(source) and(is_digit(source[end]) or source[end] == ".")) {
+                end = end + 1;
+            }
+            push(parts, span("num", substring(source, i, end - i)));
+            i = end;
+        } else {
+            push(parts, html.escape(character));
+            i = i + 1;
+        }
+    }
+    return join(parts, "");
+}
+pub fun json(source: Str) -> Str {
+    let parts: List<Str> = [];
+    mut i: Int = 0;
+    while (i < len(source)) {
+        let character: Str = source[i];
+        if (character == "\"") {
+            mut end: Int = i + 1;
+            mut escaped: Bool = false;
+            while (end < len(source)) {
+                let current: Str = source[end];
+                if (escaped) {
+                    escaped = false;
+                } else if (current == "\\") {
+                    escaped = true;
+                } else if (current == "\"") {
+                    end = end + 1;
+                    break;
+                }
+                end = end + 1;
+            }
+            push(parts, span("str", substring(source, i, end - i)));
+            i = end;
+        } else if (is_digit(character) or(character == "-" and i + 1 < len(source) and is_digit(source[i + 1]))) {
+            mut end: Int = i + 1;
+            while (end < len(source) and(is_digit(source[end]) or source[end] == "." or source[end] == "e" or source[end] == "E" or source[end] == "+" or source[end] == "-")) {
+                end = end + 1;
+            }
+            push(parts, span("num", substring(source, i, end - i)));
+            i = end;
+        } else if (is_identifier_start(character)) {
+            mut end: Int = i + 1;
+            while (end < len(source) and is_identifier_part(source[end])) {
+                end = end + 1;
+            }
+            let word: Str = substring(source, i, end - i);
+            if (word == "true" or word == "false" or word == "null") {
+                push(parts, span("kw", word));
+            } else {
+                push(parts, html.escape(word));
+            }
+            i = end;
+        } else {
+            push(parts, html.escape(character));
+            i = i + 1;
+        }
+    }
+    return join(parts, "");
+}
+pub fun toml(source: Str) -> Str {
+    return sh(source);
+}
+pub fun render(language: Str, source: Str) -> Str {
+    let name: Str = to_lower(trim(language));
+    if (name == "may" or name == "maylang") {
+        return maylang(source);
+    }
+    if (name == "sh" or name == "bash" or name == "shell") {
+        return sh(source);
+    }
+    if (name == "json") {
+        return json(source);
+    }
+    if (name == "toml") {
+        return toml(source);
+    }
+    return html.escape(source);
+}

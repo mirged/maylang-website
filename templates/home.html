@@ -1,0 +1,159 @@
+<main id="main">
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow">${version_label}</p>
+      <h1>A strict, self-hosted language that compiles straight to native Linux executables.</h1>
+      <p class="lede">Maylang has its own compiler, formatter, language server and workspace runner. <code>mayc</code> writes x86-64 ELF files directly: no LLVM, assembler or linker.</p>
+      <p class="hero-actions">
+        <a class="button" href="/install/">Install Maylang</a>
+        <a class="button secondary" href="/learn/tour/">Take the tour</a>
+      </p>
+      <p class="hero-note">Experimental · Linux x86-64 and WSL 2 · ${version_label}</p>
+    </div>
+    <div class="hero-code">
+      <div class="code-head"><span class="code-lang">may</span><button class="copy" type="button" data-copy>Copy</button></div>
+      <pre tabindex="0"><code class="language-may">${hero_code}</code></pre>
+      <div class="output"><p class="output-label">Output</p><pre tabindex="0"><code>${hero_output}</code></pre></div>
+    </div>
+  </div>
+</section>
+
+<section class="install-strip" aria-labelledby="install-strip-title">
+  <div class="wrap">
+    <h2 id="install-strip-title">Install in one line</h2>
+    <p>On Linux x86-64 or WSL 2, run:</p>
+    <div class="terminal">
+      <div class="code-head"><span class="code-lang">sh</span><button class="copy" type="button" data-copy>Copy</button></div>
+      <pre tabindex="0"><code>curl --proto '=https' --tlsv1.2 -fsSL https://github.com/mirged/maylang/releases/latest/download/maylang-init.sh | sh</code></pre>
+    </div>
+    <p>Then create and run a project:</p>
+    <div class="terminal">
+      <div class="code-head"><span class="code-lang">sh</span><button class="copy" type="button" data-copy>Copy</button></div>
+      <pre tabindex="0"><code>may new hello
+cd hello
+may run</code></pre>
+    </div>
+    <p class="muted">No checkout, Rust, Python, C compiler or build command is needed for the default install. <a href="/install/">Installation options</a> cover unattended setup, WSL, offline bundles, updates and uninstalling.</p>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="pillars-title">
+  <div class="wrap">
+    <h2 id="pillars-title">Three ideas, one toolchain</h2>
+    <div class="pillars">
+      <article class="card">
+        <h3>Strict by default</h3>
+        <p>Signatures are typed, collections say what they hold, and <code>match</code> must cover every case. Recoverable failures use <code>may { … } otherwise { … }</code>, and dynamic code crosses an explicit <code>Any</code> boundary.</p>
+        <a href="/learn/strict/">Read the strict typing guide</a>
+      </article>
+      <article class="card">
+        <h3>Self-hosted</h3>
+        <p>The compiler, formatter, language server and workspace runner are written in Maylang. A Rust → C bootstrap rebuilds the compiler from source until stage 2 and stage 3 agree byte for byte.</p>
+        <a href="/internals/">How the bootstrap works</a>
+      </article>
+      <article class="card">
+        <h3>Its own backend</h3>
+        <p><code>mayc</code> lowers Maylang to x86-64 and emits ELF itself. There is no LLVM dependency, no external assembler and no linker in the normal compile path.</p>
+        <a href="/internals/backend/">Look at the backend</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section alt" aria-labelledby="features-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="features-title">What is in the language</h2>
+      <p>Small, complete examples. Samples in the guides and tour are compiled and run against the released compiler before the site ships.</p>
+    </div>
+    <div class="feature-grid">
+      <a class="feature" href="/learn/tour/">
+        <span class="feature-kicker">Errors</span>
+        <h3>Recoverable faults</h3>
+        <p><code>may</code> and <code>otherwise</code> catch I/O, arithmetic, parsing and explicit <code>fail</code> calls without a separate exception type.</p>
+      </a>
+      <a class="feature" href="/learn/tour/">
+        <span class="feature-kicker">Concurrency</span>
+        <h3>Closures and fibers</h3>
+        <p>Functions are values, closures capture shared bindings, and <code>spawn</code> schedules cooperative fibers in the same process.</p>
+      </a>
+      <a class="feature" href="/learn/tour/">
+        <span class="feature-kicker">Data</span>
+        <h3>Structs and enums</h3>
+        <p>Named records and tagged variants, with exhaustive <code>match</code> and typed payloads.</p>
+      </a>
+      <a class="feature" href="/learn/tour/">
+        <span class="feature-kicker">Text</span>
+        <h3>A Unicode-correct string model</h3>
+        <p>Strings are UTF-8. <code>len</code> and indexing count code points; byte operations are explicit when working with networks or files.</p>
+      </a>
+      <a class="feature" href="/learn/network/">
+        <span class="feature-kicker">Network</span>
+        <h3>TCP and UDP in the library</h3>
+        <p>Synchronous IPv4 sockets in <code>stdlib/net</code>, with structured network errors.</p>
+      </a>
+      <a class="feature" href="/learn/tour/">
+        <span class="feature-kicker">Desktop</span>
+        <h3>A native UI library</h3>
+        <p>Widget trees, layout, text input and GPU drawing through the optional Sokol adapter.</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="tooling-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="tooling-title">The tools are part of the language</h2>
+      <p>Each tool is written in Maylang and ships with the compiler.</p>
+    </div>
+    <div class="tooling">
+      <div class="tool"><code>may</code><p>Workspace runner: <code>may new</code>, <code>run</code>, <code>test</code>, <code>check</code>, <code>fmt</code> and <code>dev</code>.</p><a href="/tools/may/">may reference</a></div>
+      <div class="tool"><code>mayfmt</code><p>The formatter used by the command line and editor integration.</p><a href="/tools/mayfmt/">mayfmt</a></div>
+      <div class="tool"><code>maylsp</code><p>Language server: diagnostics, navigation, references and document symbols.</p><a href="/tools/maylsp/">maylsp</a></div>
+      <div class="tool"><code>VS Code</code><p>The extension launches <code>maylsp</code> and adds syntax highlighting.</p><a href="/tools/vscode/">Editor setup</a></div>
+    </div>
+  </div>
+</section>
+
+<section class="section alt" aria-labelledby="examples-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="examples-title">Code, not screenshots</h2>
+      <p>Complete programs from the repository, with their actual output.</p>
+    </div>
+    <ul class="example-list">
+      <li><a href="/examples/"><strong>Examples gallery</strong></a><span>Single-file programs and complete applications: games, tools, simulations and network services.</span></li>
+      <li><a href="/learn/get-started/"><strong>Get started</strong></a><span>Create a workspace, run it, test it and format it.</span></li>
+      <li><a href="/learn/cookbook/"><strong>Cookbook</strong></a><span>Short recipes for files, CSV, TCP, JSON and command-line programs.</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="release-title">
+  <div class="wrap release-row">
+    <div>
+      <h2 id="release-title">Latest release</h2>
+      <p class="release-name">${version_label}</p>
+      <p class="muted">Released ${release_date}. The release page has the full changelog, upgrade notes and checksums.</p>
+      <p><a class="button secondary" href="/releases/">Read the release notes</a></p>
+    </div>
+    <div>
+      <h2>Get involved</h2>
+      <p>Maylang is experimental. Contributions are welcome, especially compiler tests, documentation and reproducible reports.</p>
+      <ul class="link-list">
+        <li><a href="/roadmap/">Roadmap</a></li>
+        <li><a href="/contribute/">Contributing</a></li>
+        <li><a href="${repo}/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">Good first issues</a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-label="About this site">
+  <div class="wrap prose">
+    ${content}
+  </div>
+</section>
+</main>

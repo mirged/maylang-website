@@ -1,0 +1,222 @@
+// util.may — small string, list and map helpers shared by the generator.
+pub fun get(record: Any, key: Str, fallback: Any) -> Any {
+    let value: Any = record[key];
+    if (value == nil) {
+        return fallback;
+    }
+    return value;
+}
+pub fun text(record: Any, key: Str, fallback: Str) -> Str {
+    let value: Any = record[key];
+    if (value == nil) {
+        return fallback;
+    }
+    return str(value);
+}
+pub fun flag(record: Any, key: Str, fallback: Bool) -> Bool {
+    let value: Any = record[key];
+    if (value == nil) {
+        return fallback;
+    }
+    return bool(value);
+}
+pub fun list_of(record: Any, key: Str) -> List<Any> {
+    let value: Any = record[key];
+    if (value == nil or type(value) != "List") {
+        return [];
+    }
+    let output: List<Any> = [];
+    for item: Any in value {
+        push(output, item);
+    }
+    return output;
+}
+pub fun map_of(record: Any, key: Str) -> Any {
+    let value: Any = record[key];
+    if (value == nil or type(value) != "Map") {
+        return {};
+    }
+    return value;
+}
+pub fun is_blank(line: Str) -> Bool {
+    return trim(line) == "";
+}
+pub fun indent_of(line: Str) -> Int {
+    mut width: Int = 0;
+    for character: Str in chars(line) {
+        if (character == " ") {
+            width = width + 1;
+        } else if (character == "\t") {
+            width = width + 2;
+        } else {
+            return width;
+        }
+    }
+    return width;
+}
+pub fun strip_indent(line: Str, width: Int) -> Str {
+    mut count: Int = 0;
+    mut index: Int = 0;
+    while (index < len(line) and count < width) {
+        if (line[index] == " ") {
+            count = count + 1;
+            index = index + 1;
+        } else if (line[index] == "\t") {
+            count = count + 2;
+            index = index + 1;
+        } else {
+            return substring(line, index, len(line) - index);
+        }
+    }
+    return substring(line, index, len(line) - index);
+}
+pub fun starts_with_any(value: Str, prefixes: List<Str>) -> Bool {
+    for prefix: Str in prefixes {
+        if (starts_with(value, prefix)) {
+            return true;
+        }
+    }
+    return false;
+}
+pub fun contains_any(value: Str, needles: List<Str>) -> Bool {
+    for needle: Str in needles {
+        if (index_of(value, needle) >= 0) {
+            return true;
+        }
+    }
+    return false;
+}
+/// GitHub-style heading anchor. ASCII letters are lowered; punctuation is
+/// dropped, whitespace becomes a hyphen, and repeated hyphens collapse.
+pub fun slug(value: Str) -> Str {
+    mut output: Str = "";
+    mut last_hyphen: Bool = false;
+    for character: Str in chars(to_lower(value)) {
+        let code: Int = ord(character);
+        let is_letter: Bool = (code >= 97 and code <= 122) or(code >= 48 and code <= 57) or code > 127;
+        if ((is_letter and character != "—" and character != "–") or character == "_") {
+            output = output + character;
+            last_hyphen = false;
+        } else if (character == " " or character == "-" or character == "—" or character == "–") {
+            if (not last_hyphen and len(output) > 0) {
+                output = output + "-";
+                last_hyphen = true;
+            }
+        }
+    }
+    while (ends_with(output, "-")) {
+        output = substring(output, 0, len(output) - 1);
+    }
+    return output;
+}
+pub fun sort_strings(values: List<Str>) -> List<Str> {
+    return sort(values);
+}
+pub fun unique(values: List<Any>) -> List<Any> {
+    let output: List<Any> = [];
+    let seen: Any = {};
+    for value: Any in values {
+        let key: Str = str(value);
+        if (not has(seen, key)) {
+            seen[key] = true;
+            push(output, value);
+        }
+    }
+    return output;
+}
+pub fun first_line(value: Str) -> Str {
+    let lines: List<Str> = split(value, "\n");
+    if (len(lines) == 0) {
+        return "";
+    }
+    return trim(lines[0]);
+}
+/// Strip a trailing Markdown link target from a source line, returning the
+/// visible text. Useful for short descriptions.
+pub fun plain(value: Str) -> Str {
+    mut output: Str = "";
+    mut i: Int = 0;
+    while (i < len(value)) {
+        let character: Str = value[i];
+        if (character == "`") {
+            let close: Int = index_from(value, "`", i + 1);
+            if (close < 0) {
+                output = output + character;
+                i = i + 1;
+            } else {
+                output = output + substring(value, i + 1, close - i - 1);
+                i = close + 1;
+            }
+        } else if (character == "[") {
+            let close: Int = index_from(value, "]", i + 1);
+            if (close < 0) {
+                output = output + character;
+                i = i + 1;
+            } else {
+                output = output + substring(value, i + 1, close - i - 1);
+                i = close + 1;
+            }
+            if (i < len(value) and value[i] == "(") {
+                let end: Int = index_from(value, ")", i + 1);
+                if (end < 0) {
+                    i = len(value);
+                } else {
+                    i = end + 1;
+                }
+            }
+        } else if (character == "*" or character == "#") {
+            i = i + 1;
+        } else {
+            output = output + character;
+            i = i + 1;
+        }
+    }
+    return trim(output);
+}
+/// `index_of` starting at a codepoint offset.
+pub fun index_from(value: Str, needle: Str, start: Int) -> Int {
+    if (start < 0 or start > len(value)) {
+        return - 1;
+    }
+    let suffix: Str = substring(value, start, len(value) - start);
+    let found: Int = index_of(suffix, needle);
+    if (found < 0) {
+        return - 1;
+    }
+    return start + found;
+}
+pub fun escape_json(value: Str) -> Str {
+    return json_stringify(value);
+}
+pub fun join_nonempty(parts: List<Str>, separator: Str) -> Str {
+    let kept: List<Str> = [];
+    for part: Str in parts {
+        if (part != "") {
+            push(kept, part);
+        }
+    }
+    return join(kept, separator);
+}
+/// A stable, short content hash used for asset file names. FNV-1a over the
+/// UTF-8 codepoints is sufficient here; it is not a security primitive.
+pub fun fingerprint(value: Str) -> Str {
+    mut hash: Int = 7;
+    for character: Str in chars(value) {
+        hash = (hash * 31 + ord(character)) % 4294967291;
+    }
+    return pad_left(to_base(hash, 16), 8, "0");
+}
+pub fun to_base(value: Int, base: Int) -> Str {
+    let digits: Str = "0123456789abcdef";
+    mut number: Int = value;
+    if (number == 0) {
+        return "0";
+    }
+    mut output: Str = "";
+    while (number > 0) {
+        let digit: Int = number % base;
+        output = digits[digit] + output;
+        number = number / base;
+    }
+    return output;
+}

@@ -1,0 +1,27 @@
+// assets.may — copy CSS, JavaScript and icons into the output with
+// content-hashed names.
+import "fs.may" as fs;
+import "util.may" as util;
+fun publish_one(root: Str, source: Str, name: Str, extension: Str) -> Str {
+    let text: Str = fs.read(fs.path_join(root, source));
+    let hash: Str = util.fingerprint(text);
+    let filename: Str = name + "." + hash + "." + extension;
+    fs.write(fs.path_join(fs.path_join(fs.path_join(root, "build/site"), "assets"), filename), text);
+    return "/assets/" + filename;
+}
+pub fun publish(root: Str) -> Any {
+    let css: Str = publish_one(root, "assets/css/site.css", "site", "css");
+    let ui: Str = publish_one(root, "assets/js/ui.js", "ui", "js");
+    let copy: Str = publish_one(root, "assets/js/copy.js", "copy", "js");
+    let search: Str = publish_one(root, "assets/js/search.js", "search", "js");
+    let favicon: Str = fs.read(fs.path_join(root, "assets/favicon.svg"));
+    fs.write(fs.path_join(fs.path_join(fs.path_join(root, "build/site"), "assets"), "favicon.svg"), favicon);
+    fs.write(fs.path_join(fs.path_join(root, "build/site"), "favicon.svg"), favicon);
+    return {
+        "css": css,
+        "ui": ui,
+        "copy": copy,
+        "search": search,
+        "favicon": "/favicon.svg",
+    };
+}

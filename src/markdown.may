@@ -1,0 +1,585 @@
+// markdown.may — the Markdown subset used by the Maylang documentation.
+//
+// Supported: ATX headings, paragraphs, emphasis, inline code, links and
+// images, nested ordered/unordered lists, fenced code with a language tag,
+// GFM tables, block quotes and horizontal rules. Raw HTML is escaped.
+//
+// Reference pages in the Maylang repository are flat lists. `render` applies
+// the design's list-only transform when a page is marked `list_only`.
+import "html.may" as html;
+import "highlight.may" as highlight;
+import "links.may" as links;
+import "util.may" as util;
+// ---------------------------------------------------------------------------
+// Inline Markdown
+pub fun inline(text: Str, page: Any) -> Str {
+    let parts: List<Str> = [];
+    let characters: List<Str> = chars(text);
+    mut i: Int = 0;
+    mut plain_start: Int = 0;
+    while (i < len(characters)) {
+        let character: Str = characters[i];
+        if (character == "\\" and i + 1 < len(characters)) {
+            if (i > plain_start) {
+                push(parts, html.escape(substring(text, plain_start, i - plain_start)));
+            }
+            push(parts, html.escape(characters[i + 1]));
+            i = i + 2;
+            plain_start = i;
+        } else if (character == "`") {
+            if (i > plain_start) {
+                push(parts, html.escape(substring(text, plain_start, i - plain_start)));
+            }
+            let close: Int = util.index_from(text, "`", i + 1);
+            if (close < 0) {
+                push(parts, "`");
+                i = i + 1;
+            } else {
+                push(parts, "<code>" + html.escape(substring(text, i + 1, close - i - 1)) + "</code>");
+                i = close + 1;
+            }
+            plain_start = i;
+        } else if (character == "!" and i + 1 < len(characters) and characters[i + 1] == "[") {
+            let label_end: Int = util.index_from(text, "](", i + 2);
+            let target_end: Int = if (label_end < 0) {
+                - 1
+            } else {
+                util.index_from(text, ")", label_end + 2)
+            };
+            if (label_end < 0 or target_end < 0) {
+                i = i + 1;
+            } else {
+                if (i > plain_start) {
+                    push(parts, html.escape(substring(text, plain_start, i - plain_start)));
+                }
+                let label: Str = substring(text, i + 2, label_end - i - 2);
+                let target: Str = substring(text, label_end + 2, target_end - label_end - 2);
+                push(parts, "<img src=\"" + links.href(target, page) + "\" alt=\"" + html.attr(util.plain(label)) + "\" loading=\"lazy\">");
+                i = target_end + 1;
+                plain_start = i;
+            }
+        } else if (character == "[") {
+            let label_end: Int = util.index_from(text, "](", i + 1);
+            let target_end: Int = if (label_end < 0) {
+                - 1
+            } else {
+                util.index_from(text, ")", label_end + 2)
+            };
+            if (label_end < 0 or target_end < 0) {
+                i = i + 1;
+            } else {
+                if (i > plain_start) {
+                    push(parts, html.escape(substring(text, plain_start, i - plain_start)));
+                }
+                let label: Str = substring(text, i + 1, label_end - i - 1);
+                let target: Str = substring(text, label_end + 2, target_end - label_end - 2);
+                push(parts, "<a href=\"" + links.href(target, page) + "\">" + inline(label, page) + "</a>");
+                i = target_end + 1;
+                plain_start = i;
+            }
+        } else if (character == "<") {
+            let close: Int = util.index_from(text, ">", i + 1);
+            if (close > i + 1) {
+                let target: Str = substring(text, i + 1, close - i - 1);
+                let lower: Str = to_lower(target);
+                if (starts_with(lower, "http://") or starts_with(lower, "https://") or starts_with(lower, "mailto:")) {
+                    if (i > plain_start) {
+                        push(parts, html.escape(substring(text, plain_start, i - plain_start)));
+                    }
+                    push(parts, "<a href=\"" + html.attr(target) + "\">" + html.escape(target) + "</a>");
+                    i = close + 1;
+                    plain_start = i;
+                } else {
+                    i = i + 1;
+                }
+            } else {
+                i = i + 1;
+            }
+        } else if (character == "*" and i + 1 < len(characters) and characters[i + 1] == "*") {
+            let close: Int = util.index_from(text, "**", i + 2);
+            if (close < 0) {
+                i = i + 2;
+            } else {
+                if (i > plain_start) {
+                    push(parts, html.escape(substring(text, plain_start, i - plain_start)));
+                }
+                push(parts, "<strong>" + inline(substring(text, i + 2, close - i - 2), page) + "</strong>");
+                i = close + 2;
+                plain_start = i;
+            }
+        } else if (character == "*" and i + 1 < len(characters) and characters[i + 1] != " " and characters[i + 1] != "*") {
+            let close: Int = util.index_from(text, "*", i + 1);
+            if (close < 0) {
+                i = i + 1;
+            } else {
+                if (i > plain_start) {
+                    push(parts, html.escape(substring(text, plain_start, i - plain_start)));
+                }
+                push(parts, "<em>" + inline(substring(text, i + 1, close - i - 1), page) + "</em>");
+                i = close + 1;
+                plain_start = i;
+            }
+        } else {
+            i = i + 1;
+        }
+    }
+    if (i > plain_start) {
+        push(parts, html.escape(substring(text, plain_start, i - plain_start)));
+    }
+    return join(parts, "");
+}
+// ---------------------------------------------------------------------------
+// Block detection
+fun is_fence(line: Str) -> Bool {
+    let trimmed: Str = trim(line);
+    return starts_with(trimmed, "```") or starts_with(trimmed, "~~~");
+}
+fun fence_info(line: Str) -> Str {
+    let trimmed: Str = trim(line);
+    let marker: Str = if (starts_with(trimmed, "```")) {
+        "```"
+    } else {
+        "~~~"
+    };
+    return trim(substring(trimmed, len(marker), len(trimmed) - len(marker)));
+}
+fun fence_language(info: Str) -> Str {
+    let parts: List<Str> = split(trim(info), " ");
+    if (len(parts) == 0) {
+        return "";
+    }
+    return parts[0];
+}
+fun heading_level(line: Str) -> Int {
+    let trimmed: Str = trim(line);
+    mut level: Int = 0;
+    while (level < len(trimmed) and level < 6 and trimmed[level] == "#") {
+        level = level + 1;
+    }
+    if (level == 0) {
+        return 0;
+    }
+    if (level < len(trimmed) and trimmed[level] != " ") {
+        return 0;
+    }
+    return level;
+}
+fun heading_text(line: Str, level: Int) -> Str {
+    return trim(substring(trim(line), level, len(trim(line)) - level));
+}
+fun is_hr(line: Str) -> Bool {
+    let trimmed: Str = trim(line);
+    if (len(trimmed) < 3) {
+        return false;
+    }
+    let first: Str = trimmed[0];
+    if (first != "-" and first != "*" and first != "_") {
+        return false;
+    }
+    for character: Str in chars(trimmed) {
+        if (character != first and character != " ") {
+            return false;
+        }
+    }
+    return true;
+}
+fun is_table_separator(line: Str) -> Bool {
+    let trimmed: Str = trim(line);
+    if (index_of(trimmed, "-") < 0 or index_of(trimmed, "|") < 0) {
+        return false;
+    }
+    for character: Str in chars(trimmed) {
+        if (character != "-" and character != "|" and character != ":" and character != " ") {
+            return false;
+        }
+    }
+    return true;
+}
+fun is_table_start(lines: List<Str>, index: Int) -> Bool {
+    if (index + 1 >= len(lines)) {
+        return false;
+    }
+    if (index_of(lines[index], "|") < 0) {
+        return false;
+    }
+    return is_table_separator(lines[index + 1]);
+}
+/// Parse a list marker. Returns nil when the line is not an item.
+pub fun list_marker(line: Str) -> Any {
+    let indent: Int = util.indent_of(line);
+    let trimmed: Str = trim(line);
+    if (len(trimmed) >= 2 and(starts_with(trimmed, "- ") or starts_with(trimmed, "* ") or starts_with(trimmed, "+ "))) {
+        return {
+            "indent": indent,
+            "ordered": false,
+            "text": substring(trimmed, 2, len(trimmed) - 2)
+        };
+    }
+    let dot: Int = index_of(trimmed, ". ");
+    if (dot > 0) {
+        let prefix: Str = substring(trimmed, 0, dot);
+        mut numeric: Bool = true;
+        for character: Str in chars(prefix) {
+            if (not(ord(character) >= 48 and ord(character) <= 57)) {
+                numeric = false;
+            }
+        }
+        if (numeric) {
+            return {
+                "indent": indent,
+                "ordered": true,
+                "text": substring(trimmed, dot + 2, len(trimmed) - dot - 2)
+            };
+        }
+    }
+    return nil;
+}
+fun starts_block(lines: List<Str>, index: Int) -> Bool {
+    let line: Str = lines[index];
+    let trimmed: Str = trim(line);
+    if (trimmed == "") {
+        return true;
+    }
+    if (is_fence(line) or heading_level(line) > 0 or is_hr(line)) {
+        return true;
+    }
+    if (starts_with(trimmed, ">")) {
+        return true;
+    }
+    if (list_marker(line) != nil) {
+        return true;
+    }
+    if (is_table_start(lines, index)) {
+        return true;
+    }
+    return false;
+}
+// ---------------------------------------------------------------------------
+// Headings and outline
+fun unique_id(state: Any, heading: Str) -> Str {
+    mut base: Str = util.slug(util.plain(heading));
+    if (base == "") {
+        base = "section";
+    }
+    let ids: Any = state.ids;
+    let count: Int = int(ids[base] ?? 0);
+    ids[base] = count + 1;
+    if (count == 0) {
+        return base;
+    }
+    return base + "-" + str(count);
+}
+pub fun outline_html(state: Any) -> Str {
+    let raw_entries: Any = state.outline;
+    let entries: List<Any> = [];
+    for raw_entry: Any in raw_entries {
+        push(entries, raw_entry);
+    }
+    if (len(entries) == 0) {
+        return "";
+    }
+    let parts: List<Str> = ["<nav class=\"outline\" aria-labelledby=\"outline-title\"><p class=\"outline-title\" id=\"outline-title\">On this page</p><ul>"];
+    for entry: Any in entries {
+        let level: Int = int(entry.level);
+        let kind: Str = if (level == 2) {
+            "outline-h2"
+        } else {
+            "outline-h3"
+        };
+        push(parts, "<li class=\"" + kind + "\"><a href=\"#" + html.attr(str(entry.id)) + "\">" + html.escape(str(entry.text)) + "</a></li>");
+    }
+    push(parts, "</ul></nav>");
+    return join(parts, "");
+}
+// ---------------------------------------------------------------------------
+// Code blocks
+fun code_block(info: Str, code: Str, output: Str, output_info: Str) -> Str {
+    mut language: Str = fence_language(info);
+    if (language == "") {
+        language = "text";
+    }
+    mut label: Str = language;
+    if (to_lower(language) == "output") {
+        label = "output";
+    }
+    let body: Str = highlight.render(language, code);
+    mut html_text: Str = "<figure class=\"code\"><figcaption class=\"code-head\"><span class=\"code-lang\">" + html.escape(label) + "</span><button class=\"copy\" type=\"button\" data-copy>Copy</button></figcaption><pre tabindex=\"0\"><code class=\"language-" + html.attr(to_lower(label)) + "\">" + body + "</code></pre>";
+    if (output != "") {
+        mut exit_note: Str = "";
+        if (index_of(output_info, "exit=") >= 0) {
+            let start: Int = index_of(output_info, "exit=") + 5;
+            let rest: Str = substring(output_info, start, len(output_info) - start);
+            let parts: List<Str> = split(rest, " ");
+            exit_note = " <span class=\"output-exit\">exit " + html.escape(parts[0]) + "</span>";
+        }
+        html_text = html_text + "<div class=\"output\"><p class=\"output-label\">Output" + exit_note + "</p><pre tabindex=\"0\"><code>" + html.escape(output) + "</code></pre></div>";
+    }
+    html_text = html_text + "</figure>";
+    return html_text;
+}
+fun read_fence(lines: List<Str>, start: Int) -> Any {
+    let info: Str = fence_info(lines[start]);
+    let code: List<Str> = [];
+    mut i: Int = start + 1;
+    while (i < len(lines)) {
+        if (is_fence(lines[i])) {
+            break;
+        }
+        push(code, lines[i]);
+        i = i + 1;
+    }
+    mut next: Int = i;
+    if (next < len(lines)) {
+        next = next + 1;
+    }
+    return {
+        "info": info,
+        "code": join(code, "\n"),
+        "next": next
+    };
+}
+// ---------------------------------------------------------------------------
+// Lists
+fun render_list(lines: List<Str>, start: Int, base: Int, state: Any, page: Any) -> Any {
+    let parts: List<Str> = [];
+    mut i: Int = start;
+    mut ordered: Bool = false;
+    let first_marker: Any = list_marker(lines[start]);
+    if (first_marker != nil) {
+        ordered = bool(first_marker.ordered);
+    }
+    while (i < len(lines)) {
+        let line: Str = lines[i];
+        if (util.is_blank(line)) {
+            i = i + 1;
+            continue;
+        }
+        let marker: Any = list_marker(line);
+        if (marker == nil or int(marker.indent) != base) {
+            break;
+        }
+        let item_lines: List<Str> = [str(marker.text)];
+        mut j: Int = i + 1;
+        while (j < len(lines)) {
+            let next_line: Str = lines[j];
+            if (util.is_blank(next_line)) {
+                mut k: Int = j + 1;
+                while (k < len(lines) and util.is_blank(lines[k])) {
+                    k = k + 1;
+                }
+                if (k < len(lines) and util.indent_of(lines[k]) > base) {
+                    push(item_lines, "");
+                    j = j + 1;
+                    continue;
+                }
+                break;
+            }
+            if (util.indent_of(next_line) <= base) {
+                break;
+            }
+            push(item_lines, util.strip_indent(next_line, base + 2));
+            j = j + 1;
+        }
+        let item_html: Str = if (len(item_lines) == 1) {
+            inline(item_lines[0], page)
+        } else {
+            blocks(item_lines, state, page)
+        };
+        push(parts, "<li>" + item_html + "</li>");
+        i = j;
+    }
+    let tag: Str = if (ordered) {
+        "ol"
+    } else {
+        "ul"
+    };
+    return {
+        "html": "<" + tag + ">" + join(parts, "") + "</" + tag + ">",
+        "next": i
+    };
+}
+// ---------------------------------------------------------------------------
+// Tables
+fun split_row(line: Str) -> List<Str> {
+    mut trimmed: Str = trim(line);
+    if (starts_with(trimmed, "|")) {
+        trimmed = substring(trimmed, 1, len(trimmed) - 1);
+    }
+    if (ends_with(trimmed, "|")) {
+        trimmed = substring(trimmed, 0, len(trimmed) - 1);
+    }
+    let cells: List<Str> = [];
+    for cell: Str in split(trimmed, "|") {
+        push(cells, trim(cell));
+    }
+    return cells;
+}
+fun table(lines: List<Str>, start: Int, state: Any, page: Any) -> Any {
+    let header: List<Str> = split_row(lines[start]);
+    let parts: List<Str> = ["<div class=\"table-wrap\"><table><thead><tr>"];
+    for cell: Str in header {
+        push(parts, "<th scope=\"col\">" + inline(cell, page) + "</th>");
+    }
+    push(parts, "</tr></thead><tbody>");
+    mut i: Int = start + 2;
+    while (i < len(lines)) {
+        let line: Str = lines[i];
+        if (util.is_blank(line) or index_of(line, "|") < 0) {
+            break;
+        }
+        let cells: List<Str> = split_row(line);
+        push(parts, "<tr>");
+        for cell: Str in cells {
+            push(parts, "<td>" + inline(cell, page) + "</td>");
+        }
+        push(parts, "</tr>");
+        i = i + 1;
+    }
+    push(parts, "</tbody></table></div>");
+    return {
+        "html": join(parts, ""),
+        "next": i
+    };
+}
+// ---------------------------------------------------------------------------
+// Blocks
+fun blocks(lines: List<Str>, state: Any, page: Any) -> Str {
+    let parts: List<Str> = [];
+    mut i: Int = 0;
+    while (i < len(lines)) {
+        let line: Str = lines[i];
+        let trimmed: Str = trim(line);
+        if (trimmed == "") {
+            i = i + 1;
+            continue;
+        }
+        let level: Int = heading_level(line);
+        if (level > 0) {
+            let heading: Str = heading_text(line, level);
+            let id: Str = unique_id(state, heading);
+            let tag: Str = "h" + str(level);
+            push(parts, "<" + tag + " id=\"" + html.attr(id) + "\">" + inline(heading, page) + "</" + tag + ">\n");
+            if (level == 2 or level == 3) {
+                push(state.outline, {
+                    "level": level,
+                    "id": id,
+                    "text": util.plain(heading)
+                });
+            }
+            i = i + 1;
+            continue;
+        }
+        if (is_fence(line)) {
+            let block: Any = read_fence(lines, i);
+            mut next: Int = int(block.next);
+            let info: Str = str(block.info);
+            let code: Str = str(block.code);
+            mut output_text: Str = "";
+            mut output_info: Str = "";
+            mut look: Int = next;
+            while (look < len(lines) and util.is_blank(lines[look])) {
+                look = look + 1;
+            }
+            if (look < len(lines) and is_fence(lines[look]) and to_lower(fence_language(fence_info(lines[look]))) == "output") {
+                let out_block: Any = read_fence(lines, look);
+                output_text = str(out_block.code);
+                output_info = str(out_block.info);
+                next = int(out_block.next);
+            }
+            push(parts, code_block(info, code, output_text, output_info) + "\n");
+            i = next;
+            continue;
+        }
+        if (is_hr(line)) {
+            push(parts, "<hr>\n");
+            i = i + 1;
+            continue;
+        }
+        if (starts_with(trimmed, ">")) {
+            let quoted: List<Str> = [];
+            while (i < len(lines) and starts_with(trim(lines[i]), ">")) {
+                let inner: Str = trim(lines[i]);
+                if (len(inner) > 1) {
+                    push(quoted, trim(substring(inner, 1, len(inner) - 1)));
+                } else {
+                    push(quoted, "");
+                }
+                i = i + 1;
+            }
+            push(parts, "<blockquote>" + blocks(quoted, state, page) + "</blockquote>\n");
+            continue;
+        }
+        if (is_table_start(lines, i)) {
+            let rendered: Any = table(lines, i, state, page);
+            push(parts, str(rendered.html) + "\n");
+            i = int(rendered.next);
+            continue;
+        }
+        let marker: Any = list_marker(line);
+        if (marker != nil) {
+            let rendered: Any = render_list(lines, i, int(marker.indent), state, page);
+            push(parts, str(rendered.html) + "\n");
+            i = int(rendered.next);
+            continue;
+        }
+        let paragraph: List<Str> = [];
+        while (i < len(lines) and not starts_block(lines, i)) {
+            push(paragraph, trim(lines[i]));
+            i = i + 1;
+        }
+        if (len(paragraph) > 0) {
+            push(parts, "<p>" + inline(join(paragraph, " "), page) + "</p>\n");
+        } else {
+            i = i + 1;
+        }
+    }
+    return join(parts, "");
+}
+// ---------------------------------------------------------------------------
+// Reference pages: flat bullet lists become structured sections.
+pub fun transform_reference(source: Str) -> Str {
+    let lines: List<Str> = split(source, "\n");
+    let parts: List<Str> = [];
+    for line: Str in lines {
+        let trimmed: Str = trim(line);
+        if (starts_with(trimmed, "- ")) {
+            let content: Str = substring(trimmed, 2, len(trimmed) - 2);
+            if (starts_with(content, "**")) {
+                let close: Int = util.index_from(content, "**", 2);
+                if (close > 0) {
+                    let term: Str = substring(content, 2, close - 2);
+                    mut rest: Str = trim(substring(content, close + 2, len(content) - close - 2));
+                    if (starts_with(rest, "—")) {
+                        rest = trim(substring(rest, 1, len(rest) - 1));
+                    } else if (starts_with(rest, "-")) {
+                        rest = trim(substring(rest, 1, len(rest) - 1));
+                    }
+                    push(parts, "\n## " + term + "\n\n" + rest + "\n");
+                    continue;
+                }
+            }
+            push(parts, "\n" + content + "\n");
+        } else {
+            push(parts, line + "\n");
+        }
+    }
+    return join(parts, "");
+}
+// ---------------------------------------------------------------------------
+// Entry point
+pub fun render(source: Str, page: Any, state: Any) -> Str {
+    mut text: Str = source;
+    if (index_of(text, "\r") >= 0) {
+        text = replace(text, "\r\n", "\n");
+    }
+    if (util.flag(page, "list_only", false)) {
+        text = transform_reference(text);
+    }
+    return blocks(split(text, "\n"), state, page);
+}
+pub fun new_state() -> Any {
+    return {
+        "ids": {},
+        "outline":[]
+    };
+}

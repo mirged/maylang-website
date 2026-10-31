@@ -1,0 +1,158 @@
+// stdlib.may — generate one page per standard-library module from
+// docs/reference/inventory.json and descriptions.json.
+import "fs.may" as fs;
+import "util.may" as util;
+import "jsonlite.may" as jsonlite;
+let KIND_ORDER: List<Str> = ["fun", "struct", "enum", "let", "mut"];
+let KIND_LABEL: Any = {
+    "fun": "Functions",
+    "struct": "Types",
+    "enum": "Enums",
+    "let": "Constants",
+    "mut": "Mutable constants",
+};
+fun kind_label(kind: Str) -> Str {
+    let label: Any = KIND_LABEL[kind];
+    if (label == nil) {
+        return "Declarations";
+    }
+    return str(label);
+}
+fun description_for(descriptions: Any, entry: Any) -> Str {
+    let symbols: Any = descriptions.symbols ?? {};
+    let name: Str = util.text(entry, "name", "");
+    let value: Any = symbols[name];
+    if (value == nil) {
+        let details: Any = descriptions.details ?? {};
+        let key: Str = util.text(entry, "module", "") + ":" + name;
+        let detail: Any = details[key];
+        if (detail != nil and type(detail) == "List" and len(detail) > 0) {
+            return str(detail[0]);
+        }
+        return "No description yet. Read the declaration source for the exact contract.";
+    }
+    return str(value);
+}
+fun fn_source(entry: Any, repo: Str, tag: Str) -> Str {
+    let module: Str = util.text(entry, "module", "");
+    let line: Str = util.text(entry, "line", "1");
+    return repo + "/blob/" + tag + "/stdlib/" + module + "#L" + line;
+}
+fun module_body(module: Str, entries: List<Any>, descriptions: Any, repo: Str, tag: Str, notes: Any) -> Str {
+    let stem: Str = replace(module, ".may", "");
+    let modules: Any = descriptions.modules ?? {};
+    let summary: Any = modules[module];
+    let description: Str = if (summary == nil) {
+        "Maylang standard-library module."
+    } else {
+        str(summary)
+    };
+    mut body: Str = "# " + stem + " module\n\n" + description + "\n\n";
+    body = body + "`import \"" + stem + "\" as " + stem + ";`\n\n";
+    if (type(notes) == "List" and len(notes) > 0) {
+        body = body + "> **Module note** — " + str(notes[0]) + "\n\n";
+    }
+    for kind: Str in KIND_ORDER {
+        let group: List<Any> = [];
+        for entry: Any in entries {
+            if (util.text(entry, "kind", "") == kind) {
+                push(group, entry);
+            }
+        }
+        if (len(group) == 0) {
+            continue;
+        }
+        body = body + "## " + kind_label(kind) + "\n\n";
+        for entry: Any in group {
+            let name: Str = util.text(entry, "name", "");
+            let signature: Str = util.text(entry, "signature", "");
+            let status: Str = util.text(entry, "status", "supported");
+            let runtime: Str = util.text(entry, "runtime", "full");
+            body = body + "### `" + name + "`\n\n";
+            body = body + "```may\n" + signature + "\n```\n\n";
+            body = body + description_for(descriptions, entry) + "\n\n";
+            body = body + "*" + status + " · " + runtime + " runtime · [source](" + fn_source(entry, repo, tag) + ")*\n\n";
+        }
+    }
+    return body;
+}
+pub fun pages(source_root: Str, inventory_path: Str, descriptions_path: Str, repo: Str, tag: Str) -> List<Any> {
+    let inventory_file: Str = fs.path_join(source_root, inventory_path);
+    if (not fs.exists(inventory_file)) {
+        return [];
+    }
+    let raw_objects: List<Str> = jsonlite.array_items(fs.read(inventory_file));
+    let by_module: Any = {};
+    for raw: Str in raw_objects {
+        let module: Str = jsonlite.string_field(raw, "module");
+        if (module == "") {
+            continue;
+        }
+        if (not has(by_module, module)) {
+            by_module[module] = [];
+        }
+        push(by_module[module], raw);
+    }
+    mut module_pairs: Any = {};
+    mut symbol_pairs: Any = {};
+    mut note_pairs: Any = {};
+    let descriptions_file: Str = fs.path_join(source_root, descriptions_path);
+    if (fs.exists(descriptions_file)) {
+        let raw: Any = jsonlite.object_items(fs.read(descriptions_file));
+        module_pairs = jsonlite.object_items(str(raw["modules"] ?? "{}"));
+        symbol_pairs = jsonlite.object_items(str(raw["symbols"] ?? "{}"));
+        note_pairs = jsonlite.object_items(str(raw["notes"] ?? "{}"));
+    }
+    let symbols: Any = {};
+    for raw_key: Any in keys(symbol_pairs) {
+        let key: Str = str(raw_key);
+        symbols[key] = jsonlite.unquote(str(symbol_pairs[key]));
+    }
+    let descriptions: Any = {
+        "modules": {},
+        "symbols": symbols,
+        "notes": {}
+    };
+    let output: List<Any> = [];
+    let raw_modules: Any = sort(keys(by_module));
+    let modules: List<Str> = [];
+    for raw_module: Any in raw_modules {
+        push(modules, str(raw_module));
+    }
+    mut index: Int = 0;
+    for module: Str in modules {
+        let raw_entries: Any = by_module[module];
+        let entries: List<Any> = [];
+        for raw_entry: Any in raw_entries {
+            push(entries, jsonlite.parse_object(str(raw_entry)));
+        }
+        let notes: List<Any> = [];
+        if (has(note_pairs, module)) {
+            for item: Str in jsonlite.array_items(str(note_pairs[module])) {
+                push(notes, jsonlite.unquote(item));
+            }
+        }
+        let summary: Str = if (has(module_pairs, module)) {
+            jsonlite.unquote(str(module_pairs[module]))
+        } else {
+            "Maylang standard-library module."
+        };
+        let stem: Str = replace(module, ".may", "");
+        let body: Str = module_body(module, entries, descriptions, repo, tag, notes);
+        push(output, {
+            "url": "/docs/latest/stdlib/" + stem + "/",
+            "title": stem + " module",
+            "description": summary,
+            "section": "docs",
+            "group": "Standard library",
+            "order": str(200 + index),
+            "layout": "doc",
+            "source": "stdlib/" + module,
+            "body": body,
+            "in_sidebar": true,
+            "kind": "stdlib",
+        });
+        index = index + 1;
+    }
+    return output;
+}

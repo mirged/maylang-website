@@ -1,0 +1,48 @@
+import "../src/markdown.may" as markdown;
+import "../src/util.may" as util;
+import "test" as test;
+let page: Any = {
+    "url": "/test/",
+    "source": "content/test.md",
+    "link_map": {
+        "docs/guide/STRICT.md": "/learn/strict/"
+    },
+    "source_root": ".",
+    "repo": "https://github.com/mirged/maylang",
+    "tag": "v0.14.0",
+};
+let state: Any = markdown.new_state();
+let html: Str = markdown.render("# Hello, World!\n\n## Part\n\nA **bold** value and a `code` span.\n\n- one\n- two\n  - nested\n", page, state);
+test.assert_contains(html, "<h1 id=\"hello-world\">Hello, World!</h1>", "heading anchor");
+test.assert_contains(html, "<strong>bold</strong>", "bold text");
+test.assert_contains(html, "<code>code</code>", "inline code");
+test.assert_contains(html, "<li>one</li>", "list item");
+test.assert_contains(html, "nested", "nested list");
+test.assert_contains(markdown.outline_html(state), "href=\"#part\"", "outline");
+let table_state: Any = markdown.new_state();
+let table: Str = markdown.render("| A | B |\n| --- | --- |\n| 1 | 2 |\n", page, table_state);
+test.assert_contains(table, "<table>", "table element");
+test.assert_contains(table, "<th scope=\"col\">A</th>", "table head");
+test.assert_contains(table, "<td>2</td>", "table body");
+let code_state: Any = markdown.new_state();
+let code: Str = markdown.render("```may\nprint(42);\n```\n\n```output\n42\n```\n", page, code_state);
+test.assert_contains(code, "tk-fn", "may syntax highlighting");
+test.assert_contains(code, "class=\"output\"", "attached output");
+test.assert_contains(code, "data-copy", "copy button");
+let linked: Str = markdown.render("[strict](../docs/guide/STRICT.md)\n", page, markdown.new_state());
+test.assert_contains(linked, "href=\"/learn/strict/\"", "repository link rewritten");
+let reference: Str = markdown.render("- **to_float** — Convert a number.\n- `to_float` returns: A float.\n", {
+    "url": "/reference/",
+    "source": "docs/reference/X.md",
+    "list_only": true,
+    "link_map": {},
+    "source_root": ".",
+    "repo": "https://github.com/mirged/maylang",
+    "tag": "v0.14.0",
+}, markdown.new_state());
+test.assert_contains(reference, "<h2 id=\"to_float\">to_float</h2>", "list-only transform keeps underscores");
+test.assert_equal(util.slug("Hello, World!"), "hello-world", "slug");
+test.assert_equal(util.plain("**to_float**"), "to_float", "plain keeps identifiers");
+test.assert_equal(len(util.fingerprint("abc")), 8, "fingerprint width");
+test.assert_equal(util.slug("0.14.x — Elm"), "014x-elm", "slug drops punctuation");
+test.test_summary();

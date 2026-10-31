@@ -1,0 +1,213 @@
+// checks.may — output checks for `maysite check`.
+import "util.may" as util;
+import "fs.may" as fs;
+fun matches_at(characters: List<Str>, needle: List<Str>, start: Int) -> Bool {
+    if (start < 0 or start + len(needle) > len(characters)) {
+        return false;
+    }
+    mut i: Int = 0;
+    while (i < len(needle)) {
+        if (characters[start + i] != needle[i]) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+fun count(haystack: Str, needle: Str) -> Int {
+    if (needle == "") {
+        return 0;
+    }
+    let characters: List<Str> = chars(haystack);
+    let pattern: List<Str> = chars(needle);
+    mut total: Int = 0;
+    mut i: Int = 0;
+    while (i + len(pattern) <= len(characters)) {
+        if (matches_at(characters, pattern, i)) {
+            total = total + 1;
+            i = i + len(pattern);
+        } else {
+            i = i + 1;
+        }
+    }
+    return total;
+}
+fun attr_values(html: Str, name: Str) -> List<Str> {
+    let values: List<Str> = [];
+    let characters: List<Str> = chars(html);
+    let pattern: List<Str> = chars(name + "=\"");
+    mut i: Int = 0;
+    while (i + len(pattern) <= len(characters)) {
+        if (matches_at(characters, pattern, i)) {
+            let start: Int = i + len(pattern);
+            mut end: Int = start;
+            while (end < len(characters) and characters[end] != "\"") {
+                end = end + 1;
+            }
+            push(values, substring(html, start, end - start));
+            i = end + 1;
+        } else {
+            i = i + 1;
+        }
+    }
+    return values;
+}
+fun anchor_set(html: Str) -> Any {
+    let anchors: Any = {};
+    for value: Str in attr_values(html, "id") {
+        anchors[value] = true;
+    }
+    return anchors;
+}
+fun external(target: Str) -> Bool {
+    let lower: Str = to_lower(target);
+    return starts_with(lower, "http://") or starts_with(lower, "https://") or starts_with(lower, "mailto:") or starts_with(lower, "tel:") or starts_with(lower, "data:") or starts_with(lower, "//");
+}
+fun check_target(target: Str, page_url: Str, outputs: Any, anchors: Any, known: Any) -> Str {
+    let link: Str = trim(target);
+    if (link == "" or external(link)) {
+        return "";
+    }
+    if (starts_with(link, "#")) {
+        let anchor: Str = substring(link, 1, len(link) - 1);
+        if (anchor == "") {
+            return "";
+        }
+        let page_anchors: Any = anchors[page_url] ?? {};
+        if (has(page_anchors, anchor)) {
+            return "";
+        }
+        return "missing anchor #" + anchor + " on " + page_url;
+    }
+    if (not starts_with(link, "/")) {
+        return "relative link left in output: " + link;
+    }
+    let hash: Int = index_of(link, "#");
+    mut path: Str = link;
+    mut anchor: Str = "";
+    if (hash >= 0) {
+        path = substring(link, 0, hash);
+        anchor = substring(link, hash + 1, len(link) - hash - 1);
+    }
+    if (path == "") {
+        path = page_url;
+    }
+    if (has(known, path)) {
+        if (anchor == "") {
+            return "";
+        }
+        let target_anchors: Any = anchors[path] ?? {};
+        if (has(target_anchors, anchor)) {
+            return "";
+        }
+        return "missing anchor #" + anchor + " on " + path;
+    }
+    if (has(outputs, path)) {
+        if (anchor == "") {
+            return "";
+        }
+        let target_anchors: Any = anchors[path] ?? {};
+        if (has(target_anchors, anchor)) {
+            return "";
+        }
+        return "missing anchor #" + anchor + " on " + path;
+    }
+    return "missing page " + path;
+}
+fun output_path(site_root: Str, url: Str) -> Str {
+    if (url == "/") {
+        return fs.path_join(site_root, "index.html");
+    }
+    if (ends_with(url, ".html")) {
+        return site_root + url;
+    }
+    mut clean: Str = url;
+    if (ends_with(clean, "/")) {
+        clean = substring(clean, 0, len(clean) - 1);
+    }
+    return site_root + clean + "/index.html";
+}
+pub fun run(pages: List<Any>, known: Any, site_root: Str) -> Int {
+    let errors: List<Str> = [];
+    let warnings: List<Str> = [];
+    let anchors: Any = {};
+    let urls: Any = {};
+    mut total_links: Int = 0;
+    // First pass: structure and anchors.
+    for page: Any in pages {
+        let url: Str = util.text(page, "url", "/");
+        let html: Str = fs.read_or(output_path(site_root, url), "");
+        urls[url] = true;
+        if (html == "") {
+            push(errors, url + ": no output");
+            continue;
+        }
+        anchors[url] = anchor_set(html);
+        let h1: Int = count(html, "<h1");
+        if (h1 != 1) {
+            push(errors, url + ": expected one h1, found " + str(h1));
+        }
+        let titles: Int = count(html, "<title>");
+        let descs: Int = count(html, "name=\"description\"");
+        if (titles != 1) {
+            push(errors, url + ": missing title");
+        }
+        if (descs < 1) {
+            push(errors, url + ": missing description");
+        }
+        let langs: Int = count(html, "lang=\"en\"");
+        if (langs < 1) {
+            push(errors, url + ": missing lang");
+        }
+        let mains: Int = count(html, "<main");
+        if (mains < 1) {
+            push(errors, url + ": missing main landmark");
+        }
+        if (len(html) > 200000) {
+            push(errors, url + ": page exceeds 200 KB raw (" + str(len(html)) + ")");
+        } else if (len(html) > 120000) {
+            push(warnings, url + ": page is large (" + str(len(html)) + " bytes raw)");
+        }
+    }
+    // Second pass: links and assets.
+    for page: Any in pages {
+        let url: Str = util.text(page, "url", "/");
+        let html: Str = fs.read_or(output_path(site_root, url), "");
+        if (html == "") {
+            continue;
+        }
+        for href: Str in attr_values(html, "href") {
+            total_links = total_links + 1;
+            let problem: Str = check_target(href, url, urls, anchors, known);
+            if (problem != "") {
+                push(errors, url + ": " + problem);
+            }
+        }
+        for src: Str in attr_values(html, "src") {
+            if (external(src) or starts_with(src, "data:")) {
+                continue;
+            }
+            if (not has(known, src) and not has(urls, src)) {
+                push(errors, url + ": missing asset " + src);
+            }
+        }
+    }
+    for warning: Str in warnings {
+        print("warning: " + warning);
+    }
+    if (len(errors) > 0) {
+        mut shown: Int = 0;
+        for error: Str in errors {
+            if (shown >= 40) {
+                print("check: … " + str(len(errors) - shown) + " more errors");
+                break;
+            }
+            print("error: " + error);
+            shown = shown + 1;
+        }
+        print("check: " + str(len(errors)) + " errors across " + str(len(pages)) + " pages");
+        return 1;
+    }
+    print("check: " + str(len(pages)) + " pages, " + str(total_links) + " links, no structural errors");
+    return 0;
+}

@@ -1,0 +1,671 @@
+// build.may — collect pages, render them and write the static site.
+import "fs.may" as fs;
+import "html.may" as html;
+import "highlight.may" as highlight;
+import "markdown.may" as markdown;
+import "templates.may" as templates;
+import "config.may" as config;
+import "assets.may" as assets;
+import "stdlib.may" as stdlib;
+import "releases.may" as releases;
+import "search.may" as search;
+import "checks.may" as checks;
+import "verify.may" as verify;
+import "util.may" as util;
+import "jsonlite.may" as jsonlite;
+let HERO_SAMPLE: Str = "fun double(value: Int) -> Int {\n    return value * 2;\n}\n\nlet answer: Int = may {\n    double(21)\n} otherwise {\n    0\n};\n\nprint(answer);";
+// ---------------------------------------------------------------------------
+// Page collection
+fun section_of(path: Str) -> Str {
+    let clean: Str = replace(path, "content/", "");
+    let parts: List<Str> = split(clean, "/");
+    if (len(parts) <= 1) {
+        return "home";
+    }
+    return parts[0];
+}
+fun group_of(section: Str) -> Str {
+    if (section == "learn") {
+        return "Learn";
+    }
+    if (section == "docs") {
+        return "Reference";
+    }
+    if (section == "tools") {
+        return "Tools";
+    }
+    if (section == "internals") {
+        return "Internals";
+    }
+    if (section == "examples") {
+        return "Examples";
+    }
+    if (section == "releases") {
+        return "Releases";
+    }
+    return "Pages";
+}
+fun default_layout(url: Str, section: Str) -> Str {
+    if (url == "/") {
+        return "home";
+    }
+    if (section == "docs" or section == "learn" or section == "tools" or section == "internals" or section == "releases" or section == "examples") {
+        return "doc";
+    }
+    return "page";
+}
+fun content_url(path: Str) -> Str {
+    mut clean: Str = replace(path, "content/", "");
+    if (ends_with(clean, ".md")) {
+        clean = substring(clean, 0, len(clean) - 3);
+    }
+    if (clean == "index") {
+        return "/";
+    }
+    if (ends_with(clean, "/index")) {
+        return "/" + substring(clean, 0, len(clean) - 6) + "/";
+    }
+    return "/" + clean + "/";
+}
+fun first_h1(body: Str) -> Str {
+    for line: Str in split(body, "\n") {
+        let trimmed: Str = trim(line);
+        if (starts_with(trimmed, "# ")) {
+            return util.plain(trim(substring(trimmed, 1, len(trimmed) - 1)));
+        }
+    }
+    return "";
+}
+fun make_page(fields: Any) -> Any {
+    let page: Any = {
+        "url": util.text(fields, "url", "/"),
+        "title": util.text(fields, "title", "Maylang"),
+        "description": util.text(fields, "description", ""),
+        "section": util.text(fields, "section", ""),
+        "group": util.text(fields, "group", ""),
+        "order": util.text(fields, "order", "999"),
+        "layout": util.text(fields, "layout", "page"),
+        "source": util.text(fields, "source", ""),
+        "body": util.text(fields, "body", ""),
+        "kind": util.text(fields, "kind", "page"),
+        "list_only": util.flag(fields, "list_only", false),
+        "in_sidebar": util.flag(fields, "in_sidebar", true),
+        "noindex": util.flag(fields, "noindex", false),
+        "date": util.text(fields, "date", ""),
+    };
+    if (page.group == "") {
+        page.group = group_of(str(page.section));
+    }
+    if (page.description == "") {
+        page.description = config.description_of(str(page.body), str(page.title));
+    }
+    return page;
+}
+fun fn_collect_content(root: Str, config_data: Any) -> List<Any> {
+    let pages: List<Any> = [];
+    if (not fs.exists(fs.path_join(root, "content"))) {
+        return pages;
+    }
+    for path: Str in fs.walk(fs.path_join(root, "content")) {
+        if (not ends_with(path, ".md")) {
+            continue;
+        }
+        mut relative: Str = path;
+        if (starts_with(relative, root + "/")) {
+            relative = substring(relative, len(root) + 1, len(relative) - len(root) - 1);
+        }
+        if (starts_with(relative, "./")) {
+            relative = substring(relative, 2, len(relative) - 2);
+        }
+        let parsed: Any = config.front_matter(fs.read(fs.path_join(root, relative)));
+        let meta: Any = parsed.meta;
+        let body: Str = str(parsed.body);
+        let url: Str = content_url(relative);
+        let section: Str = util.text(meta, "section", section_of(relative));
+        mut title: Str = util.text(meta, "title", first_h1(body));
+        if (title == "") {
+            title = fs.stem(relative);
+        }
+        let layout: Str = util.text(meta, "layout", default_layout(url, section));
+        let in_sidebar: Bool = util.text(meta, "in_sidebar", "true") != "false";
+        push(pages, make_page({
+            "url": url,
+            "title": title,
+            "description": util.text(meta, "description", ""),
+            "section": section,
+            "group": util.text(meta, "group", group_of(section)),
+            "order": util.text(meta, "order", "999"),
+            "layout": layout,
+            "source": relative,
+            "body": body,
+            "kind": "content",
+            "list_only": util.text(meta, "list_only", "false") == "true",
+            "in_sidebar": in_sidebar and url != "/",
+            "noindex": util.text(meta, "noindex", "false") == "true",
+        }));
+    }
+    return pages;
+}
+fun top_h1_count(body: Str) -> Int {
+    mut total: Int = 0;
+    mut fenced: Bool = false;
+    for line: Str in split(body, "\n") {
+        let trimmed: Str = trim(line);
+        if (starts_with(trimmed, "```") or starts_with(trimmed, "~~~")) {
+            fenced = not fenced;
+            continue;
+        }
+        if (not fenced and starts_with(trimmed, "# ")) {
+            total = total + 1;
+        }
+    }
+    return total;
+}
+fun demote_h1(body: Str) -> Str {
+    let parts: List<Str> = [];
+    mut fenced: Bool = false;
+    for line: Str in split(body, "\n") {
+        let trimmed: Str = trim(line);
+        if (starts_with(trimmed, "```") or starts_with(trimmed, "~~~")) {
+            fenced = not fenced;
+            push(parts, line);
+            continue;
+        }
+        if (not fenced and starts_with(trimmed, "# ")) {
+            push(parts, "## " + substring(trimmed, 2, len(trimmed) - 2));
+        } else {
+            push(parts, line);
+        }
+    }
+    return join(parts, "\n");
+}
+fun ensure_single_h1(body: Str, title: Str) -> Str {
+    let total: Int = top_h1_count(body);
+    if (total == 1) {
+        return body;
+    }
+    if (total == 0) {
+        return "# " + title + "\n\n" + body;
+    }
+    return "# " + title + "\n\n" + demote_h1(body);
+}
+fun fn_collect_imports(config_data: Any, source_root: Str) -> List<Any> {
+    let pages: List<Any> = [];
+    for item: Any in util.list_of(config_data, "imports") {
+        let source: Str = util.text(item, "source", "");
+        if (source == "") {
+            continue;
+        }
+        let path: Str = fs.path_join(source_root, source);
+        if (not fs.exists(path)) {
+            fail("maysite: imported source missing: " + path);
+        }
+        mut body: Str = fs.read(path);
+        mut title: Str = util.text(item, "title", first_h1(body));
+        if (title == "") {
+            title = fs.stem(source);
+        }
+        let section: Str = util.text(item, "section", "docs");
+        body = ensure_single_h1(body, title);
+        let url: Str = util.text(item, "url", "/" + section + "/" + fs.stem(source) + "/");
+        push(pages, make_page({
+            "url": url,
+            "title": title,
+            "description": util.text(item, "description", ""),
+            "section": section,
+            "group": util.text(item, "group", group_of(section)),
+            "order": util.text(item, "order", "999"),
+            "layout": util.text(item, "layout", "doc"),
+            "source": source,
+            "body": body,
+            "kind": "import",
+            "list_only": util.flag(item, "list_only", false),
+            "in_sidebar": util.flag(item, "in_sidebar", true),
+            "noindex": util.flag(item, "noindex", false),
+        }));
+    }
+    return pages;
+}
+fun fn_collect_pages(root: Str, config_data: Any, source_root: Str) -> List<Any> {
+    let pages: List<Any> = [];
+    let content_pages: List<Any> = fn_collect_content(root, config_data);
+    for page: Any in content_pages {
+        push(pages, page);
+    }
+    let import_pages: List<Any> = fn_collect_imports(config_data, source_root);
+    for page: Any in import_pages {
+        push(pages, page);
+    }
+    for page: Any in releases.pages(source_root, str(config_data.repo), str(config_data.tag)) {
+        push(pages, make_page(page));
+    }
+    let stdlib_files: Any = config_data.stdlib ?? {};
+    if (stdlib_files != nil and stdlib_files.inventory != nil) {
+        let inventory: Str = str(stdlib_files.inventory);
+        let descriptions: Str = str(stdlib_files.descriptions ?? "docs/reference/descriptions.json");
+        for page: Any in stdlib.pages(source_root, inventory, descriptions, str(config_data.repo), str(config_data.tag)) {
+            push(pages, page);
+        }
+    }
+    return pages;
+}
+// ---------------------------------------------------------------------------
+// Links and output paths
+fun fn_link_map(pages: List<Any>) -> Any {
+    let map: Any = {};
+    for page: Any in pages {
+        let source: Str = util.text(page, "source", "");
+        if (source != "") {
+            let url: Str = util.text(page, "url", "/");
+            map[source] = url;
+            map[fs.normpath(source)] = url;
+            if (util.text(page, "kind", "") == "stdlib") {
+                let stem: Str = fs.stem(source);
+                map["docs/reference/stdlib/" + stem + ".md"] = url;
+                map["docs/reference/stdlib/" + stem + "/"] = url;
+            }
+        }
+    }
+    return map;
+}
+fun fn_output_path(root: Str, url: Str) -> Str {
+    let site: Str = fs.path_join(root, "build/site");
+    if (url == "/") {
+        return fs.path_join(site, "index.html");
+    }
+    if (ends_with(url, ".html")) {
+        return site + url;
+    }
+    mut clean: Str = url;
+    if (ends_with(clean, "/")) {
+        clean = substring(clean, 0, len(clean) - 1);
+    }
+    return site + clean + "/index.html";
+}
+fun fn_source_link(config_data: Any, page: Any) -> Str {
+    let source: Str = util.text(page, "source", "");
+    if (source == "") {
+        return "";
+    }
+    return str(config_data.repo) + "/blob/" + str(config_data.tag) + "/" + source;
+}
+// ---------------------------------------------------------------------------
+// Rendering
+fun fn_stdlib_content(page: Any) -> Str {
+    let state: Any = markdown.new_state();
+    return markdown.render(util.text(page, "body", ""), page, state);
+}
+fun fn_page_body(root: Str, config_data: Any, page: Any, pages: List<Any>, content: Str, outline: Str, assets_value: Any, built: Str) -> Str {
+    let layout: Str = util.text(page, "layout", "page");
+    let section: Str = util.text(page, "section", "");
+    let url: Str = util.text(page, "url", "/");
+    let values: Any = {
+        "content": content,
+        "outline": outline,
+        "breadcrumbs": templates.breadcrumbs(config_data, page),
+        "pager": templates.pager(pages, page),
+        "sidebar": templates.sidebar(pages, section, url, group_of(section)),
+    };
+    if (layout == "home") {
+        values["hero_code"] = highlight.maylang(HERO_SAMPLE);
+        values["hero_output"] = html.escape("42");
+        values["version_label"] = html.escape(config.version_label(config_data));
+        values["release_date"] = html.escape(str(config.release(config_data).date ?? ""));
+        values["repo"] = html.attr(str(config_data.repo));
+        return templates.render(root, "home.html", values);
+    }
+    if (layout == "doc") {
+        return templates.render(root, "docs.html", values);
+    }
+    if (layout == "search") {
+        return templates.render(root, "search.html", {
+            "repo": html.attr(str(config_data.repo))
+        });
+    }
+    if (layout == "404") {
+        return templates.render(root, "404.html", {});
+    }
+    return templates.render(root, "page.html", values);
+}
+fun fn_page_metadata(page: Any, assets_value: Any, body_file: Str) -> Any {
+    return {
+        "url": util.text(page, "url", "/"),
+        "title": util.text(page, "title", "Maylang"),
+        "description": util.text(page, "description", ""),
+        "section": util.text(page, "section", ""),
+        "group": util.text(page, "group", ""),
+        "order": util.text(page, "order", "999"),
+        "layout": util.text(page, "layout", "page"),
+        "source": util.text(page, "source", ""),
+        "kind": util.text(page, "kind", "page"),
+        "list_only": util.flag(page, "list_only", false),
+        "in_sidebar": util.flag(page, "in_sidebar", true),
+        "noindex": util.flag(page, "noindex", false),
+        "date": util.text(page, "date", ""),
+        "body_file": body_file,
+        "css": util.text(assets_value, "css", "/assets/site.css"),
+        "js_ui": util.text(assets_value, "ui", "/assets/ui.js"),
+        "js_copy": util.text(assets_value, "copy", "/assets/copy.js"),
+        "js_search": util.text(assets_value, "search", "/assets/search.js"),
+    };
+}
+fun fn_global_key(root: Str, pages: List<Any>, assets_value: Any, built: Str) -> Str {
+    let parts: List<Str> = [
+        "maysite 0.1.0",
+        built,
+        util.text(assets_value, "css", ""),
+        util.text(assets_value, "ui", ""),
+        util.text(assets_value, "copy", ""),
+        util.text(assets_value, "search", ""),
+        fs.read_or(fs.path_join(root, "site.json"), ""),
+        fs.read_or(fs.path_join(root, "main.may"), ""),
+    ];
+    for path: Str in fs.walk(fs.path_join(root, "src")) {
+        push(parts, fs.read_or(path, ""));
+    }
+    for path: Str in fs.walk(fs.path_join(root, "templates")) {
+        push(parts, fs.read_or(path, ""));
+    }
+    for page: Any in pages {
+        push(parts, join([
+            util.text(page, "url", "/"),
+            util.text(page, "source", ""),
+            util.text(page, "title", ""),
+            util.text(page, "section", ""),
+            util.text(page, "group", ""),
+            util.text(page, "order", "999"),
+            str(util.flag(page, "in_sidebar", true)),
+        ], "|"));
+    }
+    return util.fingerprint(join(parts, "\n"));
+}
+fun fn_page_key(global: Str, page: Any, body: Str) -> Str {
+    return util.fingerprint(join([
+        global,
+        body,
+        util.text(page, "url", "/"),
+        util.text(page, "title", ""),
+        util.text(page, "description", ""),
+        util.text(page, "layout", "page"),
+        util.text(page, "kind", "page"),
+        str(util.flag(page, "list_only", false)),
+        str(util.flag(page, "noindex", false)),
+    ], "\n"));
+}
+fun fn_write_jobs(root: Str, pages: List<Any>, assets_value: Any, built: Str, global: Str) -> Str {
+    let jobs: Str = fs.path_join(root, ".may/jobs");
+    fs.rmrf(jobs);
+    fs.mkdirs(jobs);
+    fs.mkdirs(fs.path_join(root, ".may/render"));
+    fs.write(fs.path_join(jobs, "built.txt"), built);
+    let metadata: List<Any> = [];
+    mut index: Int = 0;
+    for page: Any in pages {
+        let body: Str = util.text(page, "body", "");
+        let body_file: Str = ".may/jobs/" + str(index) + ".md";
+        fs.write(fs.path_join(root, body_file), body);
+        page.body_file = body_file;
+        page.cache_key = fn_page_key(global, page, body);
+        page.css = util.text(assets_value, "css", "/assets/site.css");
+        page.js_ui = util.text(assets_value, "ui", "/assets/ui.js");
+        page.js_copy = util.text(assets_value, "copy", "/assets/copy.js");
+        page.js_search = util.text(assets_value, "search", "/assets/search.js");
+        page.body = "";
+        push(metadata, fn_page_metadata(page, assets_value, body_file));
+        index = index + 1;
+    }
+    let file: Str = fs.path_join(jobs, "pages.json");
+    fs.write(file, json_stringify(metadata));
+    return file;
+}
+fun fn_render_pages(root: Str, pages_json: Str, pages: List<Any>, count: Int) -> Int {
+    let executable: Str = args()[0] ?? "maysite";
+    let render_dir: Str = fs.path_join(root, ".may/render");
+    fs.mkdirs(render_dir);
+    mut status: Int = 0;
+    mut index: Int = 0;
+    mut rendered: Int = 0;
+    mut reused: Int = 0;
+    while (index < count) {
+        let page: Any = pages[index];
+        let key: Str = util.text(page, "cache_key", "");
+        let cache: Str = fs.path_join(render_dir, str(index) + ".html");
+        let key_file: Str = fs.path_join(render_dir, str(index) + ".key");
+        let output: Str = fn_output_path(root, util.text(page, "url", "/"));
+        let hit: Bool = fs.exists(cache) and fs.exists(key_file) and trim(fs.read_or(key_file, "")) == key;
+        if (hit) {
+            fs.copy(cache, output);
+            reused = reused + 1;
+        } else {
+            let command: Str = fs.quote(executable) + " page " + fs.quote(root) + " " + fs.quote(pages_json) + " " + str(index);
+            let code: Int = int(system(command));
+            if (code != 0) {
+                print("error: page " + util.text(page, "url", "/") + " failed with status " + str(code));
+                status = 1;
+            } else if (fs.exists(cache)) {
+                fs.copy(cache, output);
+                fs.write(key_file, key);
+                rendered = rendered + 1;
+            } else {
+                print("error: page " + util.text(page, "url", "/") + " produced no cache file");
+                status = 1;
+            }
+        }
+        index = index + 1;
+    }
+    print("render: " + str(rendered) + " rendered, " + str(reused) + " reused");
+    return status;
+}
+/// Render exactly one page. Called in a child process so that a long build does
+/// not accumulate every page's allocations in one runtime.
+pub fun render_one(root: Str, pages_json: Str, index: Int) -> Int {
+    let config_data: Any = config.load(root);
+    let raw_pages: Any = jsonlite.document(fs.read(pages_json));
+    if (type(raw_pages) != "List") {
+        fail("maysite: pages file must be an array");
+    }
+    let pages: List<Any> = [];
+    for raw_page: Any in raw_pages {
+        push(pages, raw_page);
+    }
+    if (index < 0 or index >= len(pages)) {
+        fail("maysite: page index out of range");
+    }
+    let page: Any = pages[index];
+    let body_file: Str = util.text(page, "body_file", "");
+    let body: Str = fs.read(fs.path_join(root, body_file));
+    page.link_map = fn_link_map(pages);
+    page.source_root = config.source_root(root, config_data);
+    page.repo = str(config_data.repo);
+    page.tag = str(config_data.tag);
+    let state: Any = markdown.new_state();
+    let content: Str = markdown.render(body, page, state);
+    let outline: Str = markdown.outline_html(state);
+    let built: Str = fs.read_or(fs.path_join(root, ".may/jobs/built.txt"), "");
+    let body_html: Str = fn_page_body(root, config_data, page, pages, content, outline, {}, built);
+    let document: Str = templates.base(root, config_data, page, body_html, built);
+    let render_dir: Str = fs.path_join(root, ".may/render");
+    fs.mkdirs(render_dir);
+    fs.write(fs.path_join(render_dir, str(index) + ".html"), document);
+    return 0;
+}
+fun fn_write_special(root: Str, config_data: Any, assets_value: Any, built: Str) -> List<Any> {
+    let pages: List<Any> = [];
+    let search_page: Any = make_page({
+        "url": "/search/",
+        "title": "Search",
+        "description": "Search Maylang documentation, guides and examples.",
+        "section": "",
+        "layout": "search",
+        "source": "templates/search.html",
+        "body": "",
+        "in_sidebar": false,
+        "noindex": true,
+    });
+    search_page.css = util.text(assets_value, "css", "/assets/site.css");
+    search_page.js_ui = util.text(assets_value, "ui", "/assets/ui.js");
+    search_page.js_copy = util.text(assets_value, "copy", "/assets/copy.js");
+    search_page.js_search = util.text(assets_value, "search", "/assets/search.js");
+    let search_html: Str = templates.base(root, config_data, search_page, templates.render(root, "search.html", {
+        "repo": html.attr(str(config_data.repo))
+    }), built);
+    fs.write(fn_output_path(root, "/search/"), search_html);
+    push(pages, search_page);
+    let not_found: Any = make_page({
+        "url": "/404.html",
+        "title": "Page not found",
+        "description": "The requested page was not found.",
+        "section": "",
+        "layout": "404",
+        "source": "templates/404.html",
+        "body": "",
+        "in_sidebar": false,
+        "noindex": true,
+    });
+    not_found.css = util.text(assets_value, "css", "/assets/site.css");
+    not_found.js_ui = util.text(assets_value, "ui", "/assets/ui.js");
+    not_found.js_copy = util.text(assets_value, "copy", "/assets/copy.js");
+    not_found.js_search = util.text(assets_value, "search", "/assets/search.js");
+    let not_found_html: Str = templates.base(root, config_data, not_found, templates.render(root, "404.html", {}), built);
+    fs.write(fs.path_join(fs.path_join(root, "build/site"), "404.html"), not_found_html);
+    push(pages, not_found);
+    return pages;
+}
+// ---------------------------------------------------------------------------
+// Site metadata files
+fun fn_xml_escape(value: Str) -> Str {
+    return replace(replace(replace(replace(value, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"), "\"", "&quot;");
+}
+fun fn_write_sitemap(root: Str, config_data: Any, pages: List<Any>) -> Nil {
+    let base: Str = str(config_data.base_url);
+    mut output: Str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
+    for page: Any in pages {
+        if (util.flag(page, "noindex", false)) {
+            continue;
+        }
+        output = output + "  <url><loc>" + fn_xml_escape(base + util.text(page, "url", "/")) + "</loc></url>\n";
+    }
+    output = output + "</urlset>\n";
+    fs.write(fs.path_join(fs.path_join(root, "build/site"), "sitemap.xml"), output);
+    return;
+}
+fun fn_write_feed(root: Str, config_data: Any, pages: List<Any>) -> Nil {
+    let base: Str = str(config_data.base_url);
+    let release: Any = config.release(config_data);
+    let fallback_date: Str = str(release.date ?? "1970-01-01");
+    let release_pages: List<Any> = [];
+    for page: Any in pages {
+        if (util.text(page, "kind", "") == "release") {
+            push(release_pages, page);
+        }
+    }
+    let first_date: Str = if (len(release_pages) > 0) {
+        util.text(release_pages[0], "date", fallback_date)
+    } else {
+        fallback_date
+    };
+    let updated: Str = first_date + "T00:00:00Z";
+    mut body: Str = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<feed xmlns=\"http://www.w3.org/2005/Atom\">\n  <title>Maylang releases</title>\n  <link href=\"" + fn_xml_escape(base + "/feed.xml") + "\" rel=\"self\"/>\n  <link href=\"" + fn_xml_escape(base + "/releases/") + "\"/>\n  <updated>" + updated + "</updated>\n  <id>" + fn_xml_escape(base + "/releases/") + "</id>\n";
+    if (len(release_pages) == 0) {
+        body = body + "  <entry>\n    <title>Maylang " + fn_xml_escape(str(release.version ?? "0.0.0") + " " + str(release.codename ?? "")) + "</title>\n    <link href=\"" + fn_xml_escape(base + "/releases/") + "\"/>\n    <updated>" + updated + "</updated>\n  </entry>\n";
+    } else {
+        for page: Any in release_pages {
+            let date: Str = util.text(page, "date", fallback_date);
+            let stamp: Str = date + "T00:00:00Z";
+            let url: Str = base + util.text(page, "url", "/releases/");
+            body = body + "  <entry>\n    <title>" + fn_xml_escape(util.text(page, "title", "Release")) + "</title>\n    <link href=\"" + fn_xml_escape(url) + "\"/>\n    <id>" + fn_xml_escape(url) + "</id>\n    <updated>" + stamp + "</updated>\n    <summary>" + fn_xml_escape(util.text(page, "description", "")) + "</summary>\n  </entry>\n";
+        }
+    }
+    body = body + "</feed>\n";
+    fs.write(fs.path_join(fs.path_join(root, "build/site"), "feed.xml"), body);
+    return;
+}
+fun fn_write_robots(root: Str, config_data: Any) -> Nil {
+    let base: Str = str(config_data.base_url);
+    fs.write(fs.path_join(fs.path_join(root, "build/site"), "robots.txt"), "User-agent: *\nAllow: /\nSitemap: " + base + "/sitemap.xml\n");
+    return;
+}
+fun fn_shell(command: Str) -> Str {
+    let tmp: Str = "/tmp/maysite-" + str(time()) + "-" + str(syscall(39)) + ".txt";
+    let status: Int = int(system(command + " > " + fs.quote(tmp) + " 2>/dev/null"));
+    let value: Str = fs.read_or(tmp, "");
+    system("rm -f -- " + fs.quote(tmp));
+    if (status != 0) {
+        return "";
+    }
+    return trim(value);
+}
+fun fn_build_stamp(root: Str, config_data: Any) -> Str {
+    let compiler: Str = env("MAYC") ?? "mayc";
+    mut version: Str = fn_shell(fs.quote(compiler) + " --version");
+    if (version == "") {
+        version = "mayc";
+    }
+    mut date: Str = fn_shell("date -u +%Y-%m-%d");
+    if (date == "") {
+        date = str(config.release(config_data).date ?? "unknown date");
+    }
+    return "Built " + date + " with " + version + ".";
+}
+fun fn_known(assets_value: Any) -> Any {
+    let known: Any = {
+        "/favicon.svg": true,
+        "/search-index.json": true,
+        "/feed.xml": true,
+        "/sitemap.xml": true,
+        "/robots.txt": true,
+        "/search/": true,
+        "/404.html": true,
+    };
+    for raw_key: Any in keys(assets_value) {
+        let key: Str = str(raw_key);
+        let value: Str = str(assets_value[key]);
+        if (starts_with(value, "/")) {
+            known[value] = true;
+        }
+    }
+    return known;
+}
+// ---------------------------------------------------------------------------
+// Entry point
+pub fun run(root: Str, check_output: Bool) -> Int {
+    let config_data: Any = config.load(root);
+    let source_root: Str = config.source_root(root, config_data);
+    if (not fs.exists(source_root)) {
+        fail("maysite: Maylang source not found at " + source_root + " (set MAYLANG_SRC)");
+    }
+    let site_root: Str = fs.path_join(root, "build/site");
+    fs.rmrf(site_root);
+    fs.mkdirs(site_root);
+    let pages: List<Any> = fn_collect_pages(root, config_data, source_root);
+    if (len(pages) == 0) {
+        fail("maysite: no pages found");
+    }
+    let assets_value: Any = assets.publish(root);
+    let built: Str = fn_build_stamp(root, config_data);
+    let global: Str = fn_global_key(root, pages, assets_value, built);
+    let pages_json: Str = fn_write_jobs(root, pages, assets_value, built, global);
+    let render_status: Int = fn_render_pages(root, pages_json, pages, len(pages));
+    let special: List<Any> = fn_write_special(root, config_data, assets_value, built);
+    let index: Str = search.index_json(pages, root);
+    fs.write(fs.path_join(site_root, "search-index.json"), index);
+    fn_write_sitemap(root, config_data, pages);
+    fn_write_feed(root, config_data, pages);
+    fn_write_robots(root, config_data);
+    let all_pages: List<Any> = [];
+    for page: Any in pages {
+        push(all_pages, page);
+    }
+    for page: Any in special {
+        push(all_pages, page);
+    }
+    print("built " + str(len(pages)) + " pages into " + site_root);
+    if (check_output) {
+        let checked: Int = checks.run(all_pages, fn_known(assets_value), site_root);
+        let verified: Int = verify.run(root, pages);
+        if (checked != 0 or verified != 0) {
+            return 1;
+        }
+    }
+    return render_status;
+}

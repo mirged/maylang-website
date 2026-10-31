@@ -1,0 +1,60 @@
+name: site
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the documented Maylang release
+        uses: actions/checkout@v4
+        with:
+          repository: mirged/maylang
+          ref: v0.14.0
+          path: .maylang-src
+
+      - name: Install mayc
+        run: |
+          curl --proto '=https' --tlsv1.2 -fsSL \
+            https://github.com/mirged/maylang/releases/latest/download/maylang-init.sh \
+            | sh -s -- --yes --no-modify-path
+          echo "$HOME/.maylang/bin" >> "$GITHUB_PATH"
+
+      - name: Build the generator
+        run: mayc main.may -o maysite
+
+      - name: Run generator tests
+        run: may test
+
+      - name: Build the site
+        run: MAYLANG_SRC="$PWD/.maylang-src" ./maysite build
+
+      - name: Check the output
+        run: MAYLANG_SRC="$PWD/.maylang-src" ./maysite check
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/site
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

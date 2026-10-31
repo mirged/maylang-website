@@ -1,0 +1,234 @@
+// templates.may — load HTML fragments and fill their ${slot}s.
+//
+// Every dynamic value passes through html.escape before it reaches a fragment.
+// Fragments themselves are trusted files in this repository.
+import "fs.may" as fs;
+import "html.may" as html;
+import "util.may" as util;
+import "config.may" as config;
+pub fun load(root: Str, name: Str) -> Str {
+    let path: Str = fs.path_join(fs.path_join(root, "templates"), name);
+    if (not fs.exists(path)) {
+        fail("maysite: missing template " + path);
+    }
+    return fs.read(path);
+}
+pub fun fill(template: Str, values: Any) -> Str {
+    let parts: List<Str> = [];
+    let characters: List<Str> = chars(template);
+    mut i: Int = 0;
+    mut plain_start: Int = 0;
+    while (i < len(characters)) {
+        if (characters[i] == "$" and i + 1 < len(characters) and characters[i + 1] == "{") {
+            let close: Int = util.index_from(template, "}", i + 2);
+            if (close > i + 1) {
+                if (i > plain_start) {
+                    push(parts, substring(template, plain_start, i - plain_start));
+                }
+                let key: Str = substring(template, i + 2, close - i - 2);
+                if (has(values, key)) {
+                    push(parts, str(values[key]));
+                } else {
+                    push(parts, substring(template, i, close - i + 1));
+                }
+                i = close + 1;
+                plain_start = i;
+            } else {
+                i = i + 1;
+            }
+        } else {
+            i = i + 1;
+        }
+    }
+    if (i > plain_start) {
+        push(parts, substring(template, plain_start, i - plain_start));
+    }
+    return join(parts, "");
+}
+pub fun render(root: Str, name: Str, values: Any) -> Str {
+    return fill(load(root, name), values);
+}
+pub fun nav(config_data: Any, section: Str) -> Str {
+    mut output: Str = "";
+    let items: List<Any> = util.list_of(config_data, "nav");
+    for item: Any in items {
+        let label: Str = util.text(item, "label", "");
+        let url: Str = util.text(item, "url", "/");
+        let item_section: Str = util.text(item, "section", "");
+        let current: Str = if (item_section != "" and item_section == section) {
+            " aria-current=\"page\""
+        } else {
+            ""
+        };
+        output = output + "<a href=\"" + html.attr(url) + "\"" + current + ">" + html.escape(label) + "</a>";
+    }
+    return output;
+}
+pub fun header(root: Str, config_data: Any, section: Str) -> Str {
+    return render(root, "header.html", {
+        "nav": nav(config_data, section),
+        "repo": html.attr(str(config_data.repo)),
+        "version": html.escape(config.version_label(config_data)),
+    });
+}
+pub fun footer(root: Str, config_data: Any, page: Any, built: Str) -> Str {
+    let source: Str = util.text(page, "source", "");
+    let tag: Str = util.text(config_data, "tag", "main");
+    let site_repo: Str = util.text(config_data, "site_repo", "https://github.com/mirged/maylang-website");
+    let kind: Str = util.text(page, "kind", "content");
+    mut edit_repo: Str = site_repo;
+    mut edit_ref: Str = "main";
+    if (kind == "import" or kind == "stdlib") {
+        edit_repo = str(config_data.repo);
+        edit_ref = tag;
+    }
+    mut edit: Str = edit_repo + "/blob/" + edit_ref + "/" + source;
+    if (source == "") {
+        edit = edit_repo;
+    }
+    return render(root, "footer.html", {
+        "repo": html.attr(str(config_data.repo)),
+        "built": html.escape(built),
+        "license": html.escape("No license file is published yet."),
+        "edit": html.attr(edit),
+    });
+}
+pub fun base(root: Str, config_data: Any, page: Any, body: Str, built: Str) -> Str {
+    let url: Str = util.text(page, "url", "/");
+    let title: Str = util.text(page, "title", "Maylang");
+    let site_title: Str = str(config_data.title);
+    let full_title: Str = if (title == site_title) {
+        title
+    } else {
+        title + " · " + site_title
+    };
+    let description: Str = util.text(page, "description", str(config_data.description));
+    return render(root, "base.html", {
+        "lang": "en",
+        "title": html.escape(full_title),
+        "description": html.attr(description),
+        "canonical": html.attr(str(config_data.base_url) + url),
+        "theme_color": "#fbfaf7",
+        "css": util.text(page, "css", "/assets/site.css"),
+        "header": header(root, config_data, util.text(page, "section", "")),
+        "body": body,
+        "footer": footer(root, config_data, page, built),
+        "js_theme": util.text(page, "js_ui", "/assets/ui.js"),
+        "js_copy": util.text(page, "js_copy", "/assets/copy.js"),
+        "js_search": util.text(page, "js_search", "/assets/search.js"),
+    });
+}
+pub fun breadcrumbs(config_data: Any, page: Any) -> Str {
+    let section: Str = util.text(page, "section", "");
+    if (section == "" or section == "home") {
+        return "";
+    }
+    mut section_label: Str = section;
+    let items: List<Any> = util.list_of(config_data, "nav");
+    for item: Any in items {
+        if (util.text(item, "section", "") == section) {
+            section_label = util.text(item, "label", section);
+        }
+    }
+    mut section_url: Str = "/" + section + "/";
+    for item: Any in items {
+        if (util.text(item, "section", "") == section) {
+            section_url = util.text(item, "url", section_url);
+        }
+    }
+    return "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\"><ol><li><a href=\"/\">Home</a></li><li><a href=\"" + html.attr(section_url) + "\">" + html.escape(section_label) + "</a></li><li aria-current=\"page\">" + html.escape(util.text(page, "title", "")) + "</li></ol></nav>";
+}
+pub fun sidebar(pages: List<Any>, section: Str, current_url: Str, title: Str) -> Str {
+    let selected: List<Any> = [];
+    for page: Any in pages {
+        if (util.text(page, "section", "") == section and util.flag(page, "in_sidebar", true)) {
+            push(selected, page);
+        }
+    }
+    if (len(selected) == 0) {
+        return "";
+    }
+    let ordered: List<Any> = sort_pages(selected);
+    mut output: Str = "<details class=\"side-details\" open><summary>" + html.escape(title) + "</summary><div class=\"side-body\">";
+    mut group: Str = "";
+    for page: Any in ordered {
+        let page_group: Str = util.text(page, "group", title);
+        if (page_group != group) {
+            if (group != "") {
+                output = output + "</ul></div>";
+            }
+            group = page_group;
+            output = output + "<div class=\"side-group\"><p class=\"side-title\">" + html.escape(group) + "</p><ul>";
+        }
+        let current: Str = if (util.text(page, "url", "") == current_url) {
+            " aria-current=\"page\""
+        } else {
+            ""
+        };
+        output = output + "<li><a href=\"" + html.attr(util.text(page, "url", "/")) + "\"" + current + ">" + html.escape(util.text(page, "title", "")) + "</a></li>";
+    }
+    if (group != "") {
+        output = output + "</ul></div>";
+    }
+    output = output + "</div></details>";
+    return output;
+}
+pub fun pager(pages: List<Any>, page: Any) -> Str {
+    let section: Str = util.text(page, "section", "");
+    let current_url: Str = util.text(page, "url", "");
+    let siblings: List<Any> = [];
+    for candidate: Any in pages {
+        if (util.text(candidate, "section", "") == section and util.flag(candidate, "in_sidebar", true)) {
+            push(siblings, candidate);
+        }
+    }
+    let ordered: List<Any> = sort_pages(siblings);
+    mut index: Int = - 1;
+    mut i: Int = 0;
+    for candidate: Any in ordered {
+        if (util.text(candidate, "url", "") == current_url) {
+            index = i;
+        }
+        i = i + 1;
+    }
+    if (index < 0) {
+        return "";
+    }
+    mut output: Str = "<nav class=\"pager\" aria-label=\"Previous and next pages\">";
+    if (index > 0) {
+        let previous: Any = ordered[index - 1];
+        output = output + "<a class=\"prev\" href=\"" + html.attr(util.text(previous, "url", "/")) + "\"><span>Previous</span><br>" + html.escape(util.text(previous, "title", "")) + "</a>";
+    } else {
+        output = output + "<span></span>";
+    }
+    if (index + 1 < len(ordered)) {
+        let next: Any = ordered[index + 1];
+        output = output + "<a class=\"next\" href=\"" + html.attr(util.text(next, "url", "/")) + "\"><span>Next</span><br>" + html.escape(util.text(next, "title", "")) + "</a>";
+    }
+    output = output + "</nav>";
+    return output;
+}
+fun sort_pages(pages: List<Any>) -> List<Any> {
+    mut output: List<Any> = [];
+    for page: Any in pages {
+        let order: Int = int(util.text(page, "order", "999"));
+        let title: Str = util.text(page, "title", "");
+        mut index: Int = 0;
+        mut placed: Bool = false;
+        while (index < len(output) and not placed) {
+            let current: Any = output[index];
+            let current_order: Int = int(util.text(current, "order", "999"));
+            let current_title: Str = util.text(current, "title", "");
+            let before: Bool = order < current_order or(order == current_order and str_cmp(title, current_title) < 0);
+            if (before) {
+                output = slice(output, 0, index) +[page] + slice(output, index, len(output));
+                placed = true;
+            }
+            index = index + 1;
+        }
+        if (not placed) {
+            push(output, page);
+        }
+    }
+    return output;
+}

@@ -1,0 +1,42 @@
+// html.may — escaping and small element helpers.
+//
+// Content is always escaped before it enters a template. Templates are trusted
+// files in this repository and are the only source of raw HTML.
+//
+// Escaping appends to a list and joins once: repeated string concatenation is
+// quadratic on the large reference pages.
+pub fun escape(value: Str) -> Str {
+    let parts: List<Str> = [];
+    for character: Str in chars(value) {
+        if (character == "&") {
+            push(parts, "&amp;");
+        } else if (character == "<") {
+            push(parts, "&lt;");
+        } else if (character == ">") {
+            push(parts, "&gt;");
+        } else if (character == "\"") {
+            push(parts, "&quot;");
+        } else if (character == "'") {
+            push(parts, "&#39;");
+        } else {
+            push(parts, character);
+        }
+    }
+    return join(parts, "");
+}
+pub fun attr(value: Str) -> Str {
+    return escape(value);
+}
+/// Escape text for use inside a JavaScript string literal embedded in a page.
+pub fun js(value: Str) -> Str {
+    return replace(replace(replace(value, "\\", "\\\\"), "\"", "\\\""), "</", "<\\/");
+}
+pub fun tag(name: Str, attributes: Str, content: Str) -> Str {
+    if (content == "") {
+        return "<" + name + attributes + ">";
+    }
+    return "<" + name + ">" + content + "</" + name + ">";
+}
+pub fun link(href: Str, label: Str, attributes: Str) -> Str {
+    return tag("a", " href=\"" + attr(href) + "\"" + attributes, label);
+}

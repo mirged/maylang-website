@@ -1,0 +1,223 @@
+// fs.may — filesystem and path helpers used by maysite.
+//
+// The runtime exposes read_file, write_file, read_dir, file_exists and mkdir.
+// This module adds the few path and directory operations the generator needs.
+/// Current working directory (Linux getcwd).
+pub fun cwd() -> Str {
+    let buffer: Int = syscall(9, 0, 4096, 3, 34, - 1, 0);
+    if (buffer < 0) {
+        fail("maysite: cannot allocate a current-directory buffer");
+    }
+    let count: Int = syscall(79, buffer, 4096);
+    if (count <= 0) {
+        syscall(11, buffer, 4096);
+        fail("maysite: cannot read the current directory");
+    }
+    mut result: Str = "";
+    mut i: Int = 0;
+    while (i < count - 1) {
+        result = result + chr(load8(buffer + i));
+        i = i + 1;
+    }
+    syscall(11, buffer, 4096);
+    return result;
+}
+pub fun exists(path: Str) -> Bool {
+    return file_exists(path);
+}
+pub fun is_dir(path: Str) -> Bool {
+    if (not file_exists(path)) {
+        return false;
+    }
+    return may {
+        read_dir(path);
+        true
+    } otherwise {
+        false
+    };
+}
+pub fun read(path: Str) -> Str {
+    return may {
+        read_file(path)
+    } otherwise {
+        fail("maysite: cannot read " + path);
+        ""
+    };
+}
+pub fun read_or(path: Str, fallback: Str) -> Str {
+    return may {
+        read_file(path)
+    } otherwise {
+        fallback
+    };
+}
+pub fun write(path: Str, text: Str) -> Nil {
+    mkdirs(dirname(path));
+    may {
+        write_file(path, text)
+    } otherwise {
+        fail("maysite: cannot write " + path + ": " + str(err.message));
+    }
+    return;
+}
+pub fun copy(from: Str, to: Str) -> Nil {
+    write(to, read(from));
+    return;
+}
+pub fun list(path: Str) -> List<Str> {
+    let names: List<Str> = [];
+    let entries: Any = may {
+        read_dir(path)
+    } otherwise {
+        []
+    };
+    for entry: Any in entries {
+        let name: Str = str(entry);
+        if (name != "." and name != "..") {
+            push(names, name);
+        }
+    }
+    return sort(names);
+}
+/// Every regular file beneath `root`, in stable order.
+pub fun walk(root: Str) -> List<Str> {
+    let found: List<Str> = [];
+    walk_into(root, found);
+    return found;
+}
+fun walk_into(directory: Str, found: List<Str>) -> Nil {
+    for name: Str in list(directory) {
+        let path: Str = path_join(directory, name);
+        let children: List<Str> = list(path);
+        if (len(children) > 0) {
+            walk_into(path, found);
+        } else {
+            push(found, path);
+        }
+    }
+    return;
+}
+pub fun path_join(a: Str, b: Str) -> Str {
+    if (len(a) == 0) {
+        return b;
+    }
+    if (len(b) == 0) {
+        return a;
+    }
+    if (ends_with(a, "/")) {
+        return a + b;
+    }
+    return a + "/" + b;
+}
+pub fun dirname(path: Str) -> Str {
+    mut index: Int = - 1;
+    mut i: Int = 0;
+    for character: Str in chars(path) {
+        if (character == "/") {
+            index = i;
+        }
+        i = i + 1;
+    }
+    if (index < 0) {
+        return ".";
+    }
+    if (index == 0) {
+        return "/";
+    }
+    return substring(path, 0, index);
+}
+pub fun basename(path: Str) -> Str {
+    mut index: Int = - 1;
+    mut i: Int = 0;
+    for character: Str in chars(path) {
+        if (character == "/") {
+            index = i;
+        }
+        i = i + 1;
+    }
+    if (index < 0) {
+        return path;
+    }
+    return substring(path, index + 1, len(path) - index - 1);
+}
+pub fun stem(path: Str) -> Str {
+    let name: Str = basename(path);
+    let dot: Int = index_of(name, ".");
+    if (dot <= 0) {
+        return name;
+    }
+    return substring(name, 0, dot);
+}
+pub fun extension(path: Str) -> Str {
+    let name: Str = basename(path);
+    let dot: Int = index_of(name, ".");
+    if (dot <= 0) {
+        return "";
+    }
+    return substring(name, dot + 1, len(name) - dot - 1);
+}
+pub fun is_absolute(path: Str) -> Bool {
+    return starts_with(path, "/");
+}
+/// Collapse `.`, `..` and repeated separators without consulting the disk.
+pub fun normpath(path: Str) -> Str {
+    let absolute: Bool = is_absolute(path);
+    let parts: List<Str> = split(path, "/");
+    let output: List<Str> = [];
+    for part: Str in parts {
+        if (part == "" or part == ".") {
+            continue;
+        }
+        if (part == "..") {
+            if (len(output) > 0 and output[len(output) - 1] != "..") {
+                pop(output);
+            } else if (not absolute) {
+                push(output, "..");
+            }
+        } else {
+            push(output, part);
+        }
+    }
+    let joined: Str = join(output, "/");
+    if (absolute) {
+        return "/" + joined;
+    }
+    if (joined == "") {
+        return ".";
+    }
+    return joined;
+}
+pub fun resolve(base: Str, path: Str) -> Str {
+    if (is_absolute(path)) {
+        return normpath(path);
+    }
+    return normpath(path_join(base, path));
+}
+/// `mkdir -p`.
+pub fun mkdirs(path: Str) -> Nil {
+    let normalized: Str = normpath(path);
+    if (normalized == "." or normalized == "/" or exists(normalized)) {
+        return;
+    }
+    mkdirs(dirname(normalized));
+    may {
+        mkdir(normalized)
+    } otherwise {
+        nil
+    };
+    return;
+}
+pub fun rmrf(path: Str) -> Nil {
+    if (not exists(path)) {
+        return;
+    }
+    if (system("rm -rf -- " + quote(path)) != 0) {
+        fail("maysite: cannot remove " + path);
+    }
+    return;
+}
+/// Quote one shell word. Used only for explicit local cleanup and child
+/// processes; user-facing content never reaches a shell.
+pub fun quote(value: Str) -> Str {
+    return "'" + replace(value, "'", "'\\''") + "'";
+}

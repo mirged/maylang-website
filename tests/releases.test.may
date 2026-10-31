@@ -1,0 +1,13 @@
+import "../src/releases.may" as releases;
+import "test" as test;
+let text: Str = "# Unreleased\n\n- not a release\n\n# Maylang 0.2.0 — Beta\n\nReleased 2026-02-01 UTC.\n\n## Changes\n\n- Second release.\n\n# Maylang 0.1.0 — Alpha\n\nReleased 2026-01-01 UTC.\n\n## Changes\n\n- First release.\n";
+let parsed: List<Any> = releases.parse(text);
+test.assert_equal(len(parsed), 2, "unreleased section skipped");
+test.assert_equal(parsed[0].version, "0.2.0", "newest version first");
+test.assert_equal(parsed[0].codename, "Beta", "codename");
+test.assert_equal(parsed[0].date, "2026-02-01", "release date");
+test.assert_equal(parsed[0].title, "0.2.0 Beta", "page title");
+test.assert_contains(parsed[0].body, "# Maylang 0.2.0 — Beta", "release body heading");
+test.assert_contains(parsed[0].body, "Second release", "release body content");
+test.assert_equal(parsed[1].version, "0.1.0", "older version");
+test.test_summary();

@@ -1,0 +1,17 @@
+<main id="main" class="wrap page search-page">
+  <article class="prose">
+    <h1>Search</h1>
+    <form class="search-large" role="search" action="/search/" method="get">
+      <label for="search-query">Search documentation, guides and examples</label>
+      <div class="search-row">
+        <input id="search-query" name="q" type="search" autocomplete="off" spellcheck="false" autofocus>
+        <button type="submit">Search</button>
+      </div>
+    </form>
+    <p id="search-status" class="muted" aria-live="polite">Type a term, or press <kbd>/</kbd> anywhere to search.</p>
+    <div id="search-results"></div>
+    <noscript>
+      <p>Search needs JavaScript on this page. You can also search the repository on <a href="${repo}/search?type=code">GitHub</a>.</p>
+    </noscript>
+  </article>
+</main>
