@@ -108,6 +108,7 @@ pub fun base(root: Str, config_data: Any, page: Any, body: Str, built: Str) -> S
         "title": html.escape(full_title),
         "description": html.attr(description),
         "canonical": html.attr(str(config_data.base_url) + url),
+        "og_image": html.attr(str(config_data.base_url) + "/og.png"),
         "theme_color": "#fbfaf7",
         "css": util.text(page, "css", "/assets/site.css"),
         "header": header(root, config_data, util.text(page, "section", "")),

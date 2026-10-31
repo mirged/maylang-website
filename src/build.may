@@ -610,6 +610,9 @@ fun fn_build_stamp(root: Str, config_data: Any) -> Str {
 fun fn_known(assets_value: Any) -> Any {
     let known: Any = {
         "/favicon.svg": true,
+        "/favicon-32.png": true,
+        "/apple-touch-icon.png": true,
+        "/og.png": true,
         "/search-index.json": true,
         "/feed.xml": true,
         "/sitemap.xml": true,

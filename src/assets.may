@@ -17,6 +17,10 @@ pub fun publish(root: Str) -> Any {
     let favicon: Str = fs.read(fs.path_join(root, "assets/favicon.svg"));
     fs.write(fs.path_join(fs.path_join(fs.path_join(root, "build/site"), "assets"), "favicon.svg"), favicon);
     fs.write(fs.path_join(fs.path_join(root, "build/site"), "favicon.svg"), favicon);
+    for name: Str in ["favicon-32.png", "apple-touch-icon.png", "og.png"] {
+        let bytes: Str = fs.read(fs.path_join(root, "assets/" + name));
+        fs.write(fs.path_join(fs.path_join(root, "build/site"), name), bytes);
+    }
     return {
         "css": css,
         "ui": ui,
