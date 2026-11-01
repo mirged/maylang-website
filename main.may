@@ -42,11 +42,19 @@ if (command == "serve") {
     } else {
         8000
     };
+    print("building the site first…");
     let status: Int = build.run(".", false);
     if (status != 0) {
         exit(status);
     }
-    exit(serve.run(".", port));
+    let served: Int = may {
+        serve.run(".", port)
+    } otherwise {
+        print("maysite: cannot serve on 127.0.0.1:" + str(port) + ": " + str(err.message));
+        print("hint: another process may already be using that port; try ./maysite serve 8001");
+        1
+    };
+    exit(served);
 }
 if (command == "page") {
     if (len(argv) < 5) {
