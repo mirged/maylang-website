@@ -137,7 +137,12 @@ may run</code></pre>
       <h2 id="release-title">Latest release</h2>
       <p class="release-name">${version_label}</p>
       <p class="muted">Released ${release_date}. The release page has the full changelog, upgrade notes and checksums.</p>
-      <p><a class="button secondary" href="/releases/">Read the release notes</a></p>
+      <ul class="release-highlights">
+        <li>Linux x86-64 is now the only supported target; the other targets and platform experiments are frozen.</li>
+        <li>Values are 16-byte <a href="/internals/fat-values/">fat values</a>: <code>Int</code> is a full signed 64-bit integer and <code>Float</code> is unboxed.</li>
+        <li>Bitwise operators, register-resident locals and type proofs in the x86-64 backend.</li>
+      </ul>
+      <p><a class="button secondary" href="/releases/${release_version}/">Read the release notes</a></p>
     </div>
     <div>
       <h2>Get involved</h2>

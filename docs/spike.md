@@ -1,9 +1,10 @@
 # Phase 1 spike: generator go/no-go
 
 Date: 2026-10-31
-Compiler: `mayc 0.14.0`
+Compiler at the time: `mayc 0.14.0`
 Source checkout: `/home/mirged/Projects/active/mayxnode/maylang`
-Documented tag: `v0.14.0` (`site.json`)
+Documented tag at the time: `v0.14.0`. The site now targets **0.15.0 Fern**
+(`v0.15.0`); the findings and timings below still describe the generator.
 
 ## Result
 
@@ -58,11 +59,11 @@ The measured fixes, all now in the generator:
 
 | Step | Time |
 | --- | --- |
-| First full build (cold render cache) | about 52 s |
+| First full build (cold render cache) | about 55 s |
 | Unchanged rebuild | about 1.6 s |
 | `maysite check` after a build (includes sample verification) | about 23 s |
 | One page in a child process | 0.4–2 s |
-| Output | 67 pages, about 1.5 MB on disk |
+| Output | 68 pages, about 1.5 MB on disk |
 
 Gzip sizes:
 
@@ -77,6 +78,15 @@ Gzip sizes:
 | Search index | 13.0 KB |
 
 All are inside the Phase 1 budgets.
+
+## Update for 0.15.0 Fern
+
+The site now targets **v0.15.0 Fern** (`site.json`) and builds against the
+0.15.0 compiler. The reference pages, standard library, install guide and
+release notes come from that tag. Values are fat in 0.15, bitwise operators
+exist, and only Linux x86-64 is an active target; the imported FAT_VALUES and
+performance design pages now exist at the tag, so the internals section uses
+the source documents rather than site-only fallbacks.
 
 ## Deliberate limits
 

@@ -11,6 +11,7 @@ import "releases.may" as releases;
 import "search.may" as search;
 import "checks.may" as checks;
 import "verify.may" as verify;
+import "compiler.may" as compiler;
 import "util.may" as util;
 import "jsonlite.may" as jsonlite;
 let HERO_SAMPLE: Str = "fun double(value: Int) -> Int {\n    return value * 2;\n}\n\nlet answer: Int = may {\n    double(21)\n} otherwise {\n    0\n};\n\nprint(answer);";
@@ -311,6 +312,7 @@ fun fn_page_body(root: Str, config_data: Any, page: Any, pages: List<Any>, conte
         values["hero_output"] = html.escape("42");
         values["version_label"] = html.escape(config.version_label(config_data));
         values["release_date"] = html.escape(str(config.release(config_data).date ?? ""));
+        values["release_version"] = html.escape(str(config.release(config_data).version ?? ""));
         values["repo"] = html.attr(str(config_data.repo));
         return templates.render(root, "home.html", values);
     }
@@ -595,9 +597,9 @@ fun fn_shell(command: Str) -> Str {
     }
     return trim(value);
 }
-fun fn_build_stamp(root: Str, config_data: Any) -> Str {
-    let compiler: Str = env("MAYC") ?? "mayc";
-    mut version: Str = fn_shell(fs.quote(compiler) + " --version");
+fun fn_build_stamp(root: Str, config_data: Any, source_root: Str) -> Str {
+    let toolchain: Str = compiler.command(source_root);
+    mut version: Str = fn_shell(fs.quote(toolchain) + " --version");
     if (version == "") {
         version = "mayc";
     }
@@ -645,7 +647,7 @@ pub fun run(root: Str, check_output: Bool) -> Int {
         fail("maysite: no pages found");
     }
     let assets_value: Any = assets.publish(root);
-    let built: Str = fn_build_stamp(root, config_data);
+    let built: Str = fn_build_stamp(root, config_data, source_root);
     let global: Str = fn_global_key(root, pages, assets_value, built);
     let pages_json: Str = fn_write_jobs(root, pages, assets_value, built, global);
     let render_status: Int = fn_render_pages(root, pages_json, pages, len(pages));
@@ -665,7 +667,7 @@ pub fun run(root: Str, check_output: Bool) -> Int {
     print("built " + str(len(pages)) + " pages into " + site_root);
     if (check_output) {
         let checked: Int = checks.run(all_pages, fn_known(assets_value), site_root);
-        let verified: Int = verify.run(root, pages);
+        let verified: Int = verify.run(root, pages, source_root);
         if (checked != 0 or verified != 0) {
             return 1;
         }

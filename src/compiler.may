@@ -1,0 +1,13 @@
+// compiler.may — choose the compiler used for the build stamp and samples.
+import "fs.may" as fs;
+pub fun command(source_root: Str) -> Str {
+    let override: Str = env("MAYC") ?? "";
+    if (trim(override) != "") {
+        return override;
+    }
+    let local: Str = fs.path_join(source_root, "compiler/mayc/mayc_new");
+    if (fs.exists(local)) {
+        return local;
+    }
+    return "mayc";
+}

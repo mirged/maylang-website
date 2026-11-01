@@ -24,6 +24,7 @@ The repository keeps single-file programs under `examples/` and complete applica
 
 - `examples/apps/mayboard` — a native UI board.
 - `examples/apps/maynes` — an emulator with a test suite.
+- `examples/apps/maytasks` — a task manager.
 
 The build commands come from each project's `may.json`. For a single file:
 

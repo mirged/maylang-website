@@ -4,12 +4,12 @@
     "base_url": "https://maylang.dev",
     "repo": "https://github.com/mirged/maylang",
     "site_repo": "https://github.com/mirged/maylang-website",
-    "tag": "v0.14.0",
+    "tag": "v0.15.0",
     "source": "../maylang",
     "release": {
-        "version": "0.14.0",
-        "codename": "Elm",
-        "date": "2026-10-20"
+        "version": "0.15.0",
+        "codename": "Fern",
+        "date": "2026-11-01"
     },
     "nav": [
         {
@@ -63,7 +63,7 @@
             "order": "1",
             "layout": "doc",
             "list_only": true,
-            "description": "Versioned language, syntax, runtime, standard-library and toolchain reference for Maylang 0.14.0."
+            "description": "Versioned language, syntax, runtime, standard-library and toolchain reference for Maylang 0.15.0."
         },
         {
             "url": "/docs/latest/language/",
@@ -170,6 +170,24 @@
             "order": "20",
             "layout": "page",
             "description": "Development setup, repository boundaries, checks and contribution guidance."
+        },
+        {
+            "url": "/internals/fat-values/",
+            "source": "docs/design/FAT_VALUES.md",
+            "title": "Fat values",
+            "section": "internals",
+            "group": "Design",
+            "order": "20",
+            "layout": "doc"
+        },
+        {
+            "url": "/internals/performance/",
+            "source": "docs/design/PERFORMANCE_ROADMAP.md",
+            "title": "Performance roadmap",
+            "section": "internals",
+            "group": "Design",
+            "order": "30",
+            "layout": "doc"
         },
         {
             "url": "/tools/may/",

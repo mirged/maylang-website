@@ -12,11 +12,13 @@ timings are in [docs/spike.md](docs/spike.md).
 ## Requirements
 
 - Linux x86-64 (including x86-64 WSL 2)
-- a released `mayc` (0.14.0 is the current target)
+- a released `mayc` (0.15.0 is the current target)
 - a Maylang checkout at the tag in `site.json`, by default `../maylang`
 
 `MAYLANG_SRC` overrides the checkout path. `MAYC` overrides the compiler used
-for the build stamp and future sample verification.
+for the build stamp and sample verification. If `MAYC` is unset and
+`$MAYLANG_SRC/compiler/mayc/mayc_new` exists, that compiler is used; otherwise
+the build falls back to `mayc` on `PATH`.
 
 ## Build
 

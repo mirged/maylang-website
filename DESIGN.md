@@ -1,7 +1,7 @@
 # Maylang website: design document
 
-Status: draft, 2026-10-31. Target release: the site goes live with
-Maylang 0.15. Owner: TBD.
+Status: implemented through Phase 2, 2026-11-01. The site targets Maylang
+0.15.0 Fern. Owner: TBD.
 
 This document plans a full website for Maylang. It covers:
 
@@ -125,7 +125,7 @@ print.
 
 - **Top bar:** logo, Learn, Docs, Tools, Examples, Internals, Releases,
   search, a GitHub link, and a version badge showing the latest release
-  version and codename (currently `0.14.0 Elm`).
+  version and codename (currently `0.15.0 Fern`).
 - **Docs and Learn pages** have three columns:
   - a left sidebar with the section tree;
   - the content;
@@ -176,7 +176,7 @@ From top to bottom:
      with `may { } otherwise { }`. Its output appears beneath it.
    - Two buttons: **Install** and **Take the tour**.
    - A small line under the buttons: "Experimental · Linux x86-64 and WSL 2
-     · v0.14.0 Elm".
+     · v0.15.0 Fern".
 2. **Install strip.** The one-line `curl … | sh` command with a copy button,
    then `may new hello && cd hello && may run`.
 3. **Three pillars**, each with a short code or diagram and a "learn more"
@@ -656,7 +656,7 @@ criteria.
   and whether to accept a rasterizer for social cards.
 - Create the `maylang-website` repository from this directory. Add
   `may.json`, CI that only builds `maysite` and runs `may test`, and
-  `site.json` pinned to `v0.14.0`.
+  `site.json` pinned to `v0.15.0`.
 - **Done when:** CI is green on an empty generator.
 
 ### Phase 1: generator spike and go/no-go (about 1 week)
@@ -710,7 +710,7 @@ criteria.
 
 ### Phase 4: versioning, internals and polish (about 2 weeks)
 
-- **Versioned docs:** `/docs/0.14/`, `/docs/latest/` and the nightly
+- **Versioned docs:** `/docs/0.15/`, `/docs/latest/` and the nightly
   `/docs/next/`. Add the version picker and per-version search indexes.
 - **Internals** section, with SVG diagrams and every backend report.
 - **Diagnostics catalogue:** each compiler error with a `may fail` sample
