@@ -6,8 +6,9 @@
 // The generator intentionally uses only the Maylang standard library and the
 // compiler's own file, JSON, string and process APIs.
 import "src/build.may" as build;
+import "src/serve.may" as serve;
 fun usage() -> Nil {
-    print("maysite — the Maylang website generator\n\n  maysite build          Render build/site/\n  maysite check          Render, then verify links and page structure\n  maysite version        Print the generator version\n\nEnvironment:\n  MAYLANG_SRC            Path to a Maylang checkout (default: ../maylang)\n  MAYC                   Compiler used for sample verification (default: mayc)\n");
+    print("maysite — the Maylang website generator\n\n  maysite build          Render build/site/\n  maysite check          Render, then verify links and page structure\n  maysite serve [PORT]   Build, then serve build/site on 127.0.0.1 (default 8000)\n  maysite version        Print the generator version\n\nEnvironment:\n  MAYLANG_SRC            Path to a Maylang checkout (default: ../maylang)\n  MAYC                   Compiler used for sample verification (default: mayc)\n");
     return;
 }
 let argv: List<Str> = args();
@@ -34,6 +35,18 @@ if (command == "build") {
 }
 if (command == "check") {
     exit(build.run(root, true));
+}
+if (command == "serve") {
+    let port: Int = if (len(argv) > 2) {
+        int(argv[2])
+    } else {
+        8000
+    };
+    let status: Int = build.run(".", false);
+    if (status != 0) {
+        exit(status);
+    }
+    exit(serve.run(".", port));
 }
 if (command == "page") {
     if (len(argv) < 5) {

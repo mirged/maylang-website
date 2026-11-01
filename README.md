@@ -24,7 +24,14 @@ for the build stamp and future sample verification.
 mayc main.may -o maysite
 ./maysite build          # writes build/site/
 ./maysite check          # builds, then checks structure and links
+./maysite serve 8000     # builds, then serves http://127.0.0.1:8000/
 ```
+
+Do not open `build/site/index.html` with `file://`. The generated pages use
+root-relative URLs such as `/assets/site.<hash>.css`, so a static file opened
+directly will not load its stylesheet, scripts or navigation. Serve the
+directory over HTTP; `maysite serve` is the local command, and
+`python3 -m http.server --directory build/site` works too.
 
 Or use the workspace:
 

@@ -1,0 +1,141 @@
+// serve.may — a small local HTTP server for previewing build/site.
+//
+// This is a development server, not a production one: it serves one request
+// per connection, has no TLS and binds to loopback only.
+import "fs.may" as fs;
+import "util.may" as util;
+import "net" as net;
+fun content_type(path: Str) -> Str {
+    let extension: Str = to_lower(fs.extension(path));
+    if (extension == "html") {
+        return "text/html; charset=utf-8";
+    }
+    if (extension == "css") {
+        return "text/css; charset=utf-8";
+    }
+    if (extension == "js") {
+        return "text/javascript; charset=utf-8";
+    }
+    if (extension == "json") {
+        return "application/json; charset=utf-8";
+    }
+    if (extension == "xml") {
+        return "application/xml; charset=utf-8";
+    }
+    if (extension == "svg") {
+        return "image/svg+xml";
+    }
+    if (extension == "png") {
+        return "image/png";
+    }
+    if (extension == "jpg" or extension == "jpeg") {
+        return "image/jpeg";
+    }
+    if (extension == "webp") {
+        return "image/webp";
+    }
+    if (extension == "avif") {
+        return "image/avif";
+    }
+    if (extension == "woff2") {
+        return "font/woff2";
+    }
+    if (extension == "ico") {
+        return "image/x-icon";
+    }
+    if (extension == "txt") {
+        return "text/plain; charset=utf-8";
+    }
+    return "application/octet-stream";
+}
+fun response(status: Str, type: Str, body: Str) -> Str {
+    return "HTTP/1.1 " + status + "\r\nContent-Type: " + type + "\r\nContent-Length: " + str(net.byte_length(body)) + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n" + body;
+}
+fun not_found() -> Str {
+    let body: Str = "<!doctype html><meta charset=\"utf-8\"><title>Not found</title><h1>Not found</h1><p>maysite serves files from build/site.</p>";
+    return response("404 Not Found", "text/html; charset=utf-8", body);
+}
+fun resolve(site: Str, target: Str) -> Str {
+    mut path: Str = target;
+    let query: Int = index_of(path, "?");
+    if (query >= 0) {
+        path = substring(path, 0, query);
+    }
+    let hash: Int = index_of(path, "#");
+    if (hash >= 0) {
+        path = substring(path, 0, hash);
+    }
+    if (path == "/") {
+        return fs.path_join(site, "index.html");
+    }
+    if (starts_with(path, "/")) {
+        path = substring(path, 1, len(path) - 1);
+    }
+    let normalized: Str = fs.normpath(path);
+    if (starts_with(normalized, "..") or fs.is_absolute(normalized)) {
+        return "";
+    }
+    let file: Str = fs.path_join(site, normalized);
+    if (fs.exists(file) and not ends_with(target, "/")) {
+        return file;
+    }
+    let index: Str = fs.path_join(file, "index.html");
+    if (fs.exists(index)) {
+        return index;
+    }
+    return file;
+}
+fun handle(client: net.Socket, site: Str) -> Nil {
+    let request: Str = net.tcp_receive(client, 8192);
+    let lines: List<Str> = split(request, "\r\n");
+    if (len(lines) == 0) {
+        net.tcp_send(client, not_found());
+        return;
+    }
+    let parts: List<Str> = split(lines[0], " ");
+    if (len(parts) < 3) {
+        net.tcp_send(client, response("400 Bad Request", "text/plain; charset=utf-8", "Bad request\n"));
+        return;
+    }
+    let method: Str = parts[0];
+    let target: Str = parts[1];
+    if (method != "GET" and method != "HEAD") {
+        net.tcp_send(client, response("405 Method Not Allowed", "text/plain; charset=utf-8", "Method not allowed\n"));
+        return;
+    }
+    let file: Str = resolve(site, target);
+    if (file == "" or not fs.exists(file)) {
+        print("404 " + target);
+        net.tcp_send(client, not_found());
+        return;
+    }
+    let body: Str = may {
+        read_file(file)
+    } otherwise {
+        print("500 " + target);
+        net.tcp_send(client, response("500 Internal Server Error", "text/plain; charset=utf-8", "Cannot read file\n"));
+        return;
+    };
+    print("200 " + target);
+    net.tcp_send(client, response("200 OK", content_type(file), body));
+    return;
+}
+pub fun run(root: Str, port: Int) -> Int {
+    let site: Str = fs.path_join(root, "build/site");
+    if (not fs.exists(fs.path_join(site, "index.html"))) {
+        fail("maysite: build/site is missing; run `maysite build` first");
+    }
+    let listener: net.Socket = net.tcp_listen("127.0.0.1", port);
+    print("serving " + site + " at http://127.0.0.1:" + str(port) + "/");
+    print("press Ctrl+C to stop");
+    while (true) {
+        let client: net.Socket = net.tcp_accept(listener);
+        may {
+            handle(client, site);
+        } otherwise {
+            print("connection error: " + str(err.message));
+        };
+        net.socket_close(client);
+    }
+    return 0;
+}

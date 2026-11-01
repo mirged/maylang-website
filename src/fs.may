@@ -150,7 +150,14 @@ pub fun stem(path: Str) -> Str {
 }
 pub fun extension(path: Str) -> Str {
     let name: Str = basename(path);
-    let dot: Int = index_of(name, ".");
+    mut dot: Int = - 1;
+    mut i: Int = 0;
+    for character: Str in chars(name) {
+        if (character == ".") {
+            dot = i;
+        }
+        i = i + 1;
+    }
     if (dot <= 0) {
         return "";
     }
