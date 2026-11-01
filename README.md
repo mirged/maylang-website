@@ -27,6 +27,19 @@ mayc main.may -o maysite
 ./maysite serve 8000     # builds, then serves http://127.0.0.1:8000/
 ```
 
+`maysite` is the binary in this directory, so invoke it as `./maysite`, not
+`maysite`, unless you add the directory to `PATH`. The first build after a
+source change takes about a minute; later builds reuse the page cache and start
+in a few seconds. With `make`:
+
+```sh
+make serve
+```
+
+If `./maysite` is missing, build it first (`mayc main.may -o maysite`). If
+`./maysite serve 8000` reports that the port is busy, use another port, for
+example `./maysite serve 8001`.
+
 Do not open `build/site/index.html` with `file://`. The generated pages use
 root-relative URLs such as `/assets/site.<hash>.css`, so a static file opened
 directly will not load its stylesheet, scripts or navigation. Serve the
