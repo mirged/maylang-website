@@ -9,7 +9,7 @@ let page: Any = {
     },
     "source_root": ".",
     "repo": "https://github.com/mirged/maylang",
-    "tag": "v0.15.0",
+    "tag": "v0.15.1",
 };
 let state: Any = markdown.new_state();
 let html: Str = markdown.render("# Hello, World!\n\n## Part\n\nA **bold** value and a `code` span.\n\n- one\n- two\n  - nested\n", page, state);
@@ -38,7 +38,7 @@ let reference: Str = markdown.render("- **to_float** — Convert a number.\n- `t
     "link_map": {},
     "source_root": ".",
     "repo": "https://github.com/mirged/maylang",
-    "tag": "v0.15.0",
+    "tag": "v0.15.1",
 }, markdown.new_state());
 test.assert_contains(reference, "<h2 id=\"to_float\">to_float</h2>", "list-only transform keeps underscores");
 test.assert_equal(util.slug("Hello, World!"), "hello-world", "slug");
