@@ -45,16 +45,16 @@ may run
 ```may
 import "csv" as csv;
 
-fun total(rows: Any) -> Int {
+fun total(rows: List<Map<Str, Str>>) -> Int {
     mut sum: Int = 0;
-    for row: Any in rows {
-        sum += int(row.score);
+    for row: Map<Str, Str> in rows {
+        sum += int(row["score"] ?? "0");
     }
     return sum;
 }
 
-let rows: Any = csv.csv_parse("name,score\nAda,10\nGrace,12\n");
-let records: Any = csv.csv_records(["name", "score"], slice(rows, 1, len(rows)));
+let rows: List<List<Str>> = csv.csv_parse("name,score\nAda,10\nGrace,12\n");
+let records: List<Map<Str, Str>> = csv.csv_records(["name", "score"], slice(rows, 1, len(rows)));
 print(total(records));
 ```
 
