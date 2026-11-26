@@ -4,12 +4,12 @@
     "base_url": "https://maylang.dev",
     "repo": "https://github.com/mirged/maylang",
     "site_repo": "https://github.com/mirged/maylang-website",
-    "tag": "v0.15.1",
+    "tag": "v0.15.3",
     "source": "../maylang",
     "release": {
-        "version": "0.15.1",
+        "version": "0.15.3",
         "codename": "Fern",
-        "date": "2026-11-14"
+        "date": "2026-11-26"
     },
     "nav": [
         {
@@ -63,7 +63,7 @@
             "order": "1",
             "layout": "doc",
             "list_only": true,
-            "description": "Versioned language, syntax, runtime, standard-library and toolchain reference for Maylang 0.15.1."
+            "description": "Versioned language, syntax, runtime, standard-library and toolchain reference for Maylang 0.15.3."
         },
         {
             "url": "/docs/latest/language/",

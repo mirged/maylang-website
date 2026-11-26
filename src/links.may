@@ -6,7 +6,7 @@
 //   source       repository-relative path, e.g. docs/guide/STRICT.md
 //   link_map     { repository path -> site URL }
 //   source_root  absolute or relative checkout path
-//   repo, tag     https://github.com/mirged/maylang + v0.15.1
+//   repo, tag     https://github.com/mirged/maylang + v0.15.3
 import "fs.may" as fs;
 import "util.may" as util;
 import "html.may" as html;
