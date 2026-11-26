@@ -89,7 +89,7 @@ pub fun footer(root: Str, config_data: Any, page: Any, built: Str) -> Str {
     return render(root, "footer.html", {
         "repo": html.attr(str(config_data.repo)),
         "built": html.escape(built),
-        "license": html.escape("No license file is published yet."),
+        "license": html.attr(str(config_data.repo) + "/blob/" + tag + "/LICENSE"),
         "edit": html.attr(edit),
     });
 }

@@ -138,9 +138,9 @@ may run</code></pre>
       <p class="release-name">${version_label}</p>
       <p class="muted">Released ${release_date}. The release page has the full changelog, upgrade notes and checksums.</p>
       <ul class="release-highlights">
-        <li>Linux x86-64 is now the only supported target; the other targets and platform experiments are frozen.</li>
-        <li>Values are 16-byte <a href="/internals/fat-values/">fat values</a>: <code>Int</code> is a full signed 64-bit integer and <code>Float</code> is unboxed.</li>
-        <li>Bitwise operators, register-resident locals and type proofs in the x86-64 backend.</li>
+        <li>The runtime raises a fault where it used to return a wrong value: out-of-range reads, unsupported operands and wrong-arity calls.</li>
+        <li>The type checker closes soundness gaps and understands <code>T?</code>, tuples, nested and negative patterns, and compound assignment operators.</li>
+        <li>A structural <code>equal(a, b)</code>, used by <code>assert_eq</code>, and catchable stack overflow with guarded fiber stacks.</li>
       </ul>
       <p><a class="button secondary" href="/releases/${release_version}/">Read the release notes</a></p>
     </div>

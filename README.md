@@ -12,7 +12,7 @@ timings are in [docs/spike.md](docs/spike.md).
 ## Requirements
 
 - Linux x86-64 (including x86-64 WSL 2)
-- a released `mayc` (0.15.1 is the current target)
+- a released `mayc` (0.15.2 is the current target)
 - a Maylang checkout at the tag in `site.json`, by default `../maylang`
 
 `MAYLANG_SRC` overrides the checkout path. `MAYC` overrides the compiler used

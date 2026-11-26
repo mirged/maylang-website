@@ -102,9 +102,9 @@ pub fun unquote(raw: Str) -> Str {
         } else if (escaped == "r") {
             output = output + "\r";
         } else if (escaped == "b") {
-            output = output + "\b";
+            output = output + "\x08";
         } else if (escaped == "f") {
-            output = output + "\f";
+            output = output + "\x0C";
         } else if (escaped == "/") {
             output = output + "/";
         } else if (escaped == "\\") {
