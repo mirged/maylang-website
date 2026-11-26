@@ -1,7 +1,7 @@
 # Maylang website: design document
 
 Status: implemented through Phase 2, 2026-11-01. The site targets Maylang
-0.15.2 Fern. Owner: TBD.
+0.15.3 Fern. Owner: TBD.
 
 This document plans a full website for Maylang. It covers:
 
@@ -125,7 +125,7 @@ print.
 
 - **Top bar:** logo, Learn, Docs, Tools, Examples, Internals, Releases,
   search, a GitHub link, and a version badge showing the latest release
-  version and codename (currently `0.15.2 Fern`).
+  version and codename (currently `0.15.3 Fern`).
 - **Docs and Learn pages** have three columns:
   - a left sidebar with the section tree;
   - the content;
@@ -176,7 +176,7 @@ From top to bottom:
      with `may { } otherwise { }`. Its output appears beneath it.
    - Two buttons: **Install** and **Take the tour**.
    - A small line under the buttons: "Experimental · Linux x86-64 and WSL 2
-     · v0.15.2 Fern".
+     · v0.15.3 Fern".
 2. **Install strip.** The one-line `curl … | sh` command with a copy button,
    then `may new hello && cd hello && may run`.
 3. **Three pillars**, each with a short code or diagram and a "learn more"
